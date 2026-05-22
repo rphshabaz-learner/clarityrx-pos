@@ -46,7 +46,7 @@ describe("posAccessLog", () => {
 
   test("ACCESS_LOG_TYPES covers all tracked categories", () => {
     expect(Object.keys(ACCESS_LOG_TYPES).sort()).toEqual(
-      ["discount_override", "profile_view", "refund_override", "rx_transaction", "void"].sort()
+      ["age_verification", "discount_override", "profile_view", "refund_override", "rx_transaction", "void"].sort()
     );
   });
 });
