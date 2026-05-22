@@ -10,6 +10,7 @@ import PosCustomersPanel from "../../components/pos/customers/PosCustomersPanel"
 import PosPurchasingPanel from "../../components/pos/purchasing/PosPurchasingPanel";
 import PosReportsPanel from "../../components/pos/reports/PosReportsPanel";
 import PosRxIntegrationPanel from "../../components/pos/rx/PosRxIntegrationPanel";
+import PosSelfCheckoutPanel from "../../components/pos/selfcheckout/PosSelfCheckoutPanel";
 import { customerDisplayName } from "../../lib/customers/customerTypes";
 import PosSalesRegisterPanel from "../../components/pos/sales/PosSalesRegisterPanel";
 import {
@@ -39,6 +40,7 @@ import { POS_DEFAULT_CART, POS_FRONT_STORE_ITEMS } from "./posCatalog";
 
 const POS_WORKSPACE_TABS = [
   { id: "till", label: "Sales" },
+  { id: "selfcheckout", label: "Self Checkout" },
   { id: "rx", label: "Rx Integration" },
   { id: "customers", label: "Customers" },
   { id: "purchasing", label: "Purchasing" },
@@ -110,6 +112,7 @@ export default function PosScreen() {
   const canCustomers = hasPermission("pos.customers");
   const canReports = hasPermission("pos.reports");
   const canRx = hasPermission("pos.rx");
+  const canSelfCheckout = hasPermission("pos.selfcheckout");
 
   const [workspaceTab, setWorkspaceTab] = useState("till");
   const [activeCustomer, setActiveCustomer] = useState(null);
@@ -901,6 +904,7 @@ export default function PosScreen() {
           if (tab.id === "customers" && !canCustomers) return false;
           if (tab.id === "reports" && !canReports) return false;
           if (tab.id === "rx" && !canRx) return false;
+          if (tab.id === "selfcheckout" && !canSelfCheckout) return false;
           return true;
         }).map((tab) => (
           <button
@@ -929,6 +933,13 @@ export default function PosScreen() {
           demographicConfig={demographicConfig}
           onSaveFavorites={handleSaveFavorites}
           onSaveDemographics={handleSaveDemographics}
+        />
+      ) : null}
+
+      {workspaceTab === "selfcheckout" ? (
+        <PosSelfCheckoutPanel
+          onNotify={(message, type) => setToast({ message, type: type || "info" })}
+          logActivity={logActivity}
         />
       ) : null}
 

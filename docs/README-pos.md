@@ -69,6 +69,10 @@ Workspace tab **Customers** — profiles, loyalty, store charge, LTC billing, pu
 
 Workspace tab **Rx Integration** — Kroll connection, pickup sync, Rx payment posting, combined Rx + retail receipts, prescription status lookup, patient account charging, delivery/payment matching. See [rx-integration.md](./rx-integration.md).
 
+## Self checkout
+
+Workspace tab **Self Checkout** — customer-facing scan-and-pay kiosk, card payment on pinpad, receipt options (print / email / SMS / none), loyalty entry. See [self-checkout.md](./self-checkout.md).
+
 ## Securelink (integrated card)
 
 When `REACT_APP_SECURELINK_ENABLED=1`, Debit and Credit Card charges use the pinpad before `complete-sale`. See [securelink-integration.md](./securelink-integration.md).
