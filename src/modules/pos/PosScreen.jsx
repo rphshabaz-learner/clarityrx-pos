@@ -358,10 +358,8 @@ export default function PosScreen() {
         options={demographicConfig.options}
         selectedId={selectedDemographicId}
         defaultId={demographicConfig.defaultId}
-        skipPrompt={demographicConfig.skipPrompt}
         onSelect={setSelectedDemographicId}
         onSetDefault={(id) => persistDemographics({ ...demographicConfig, defaultId: id })}
-        onToggleSkipPrompt={(skipPrompt) => persistDemographics({ ...demographicConfig, skipPrompt })}
       />
 
       <div className="crx-tabs" style={{ marginBottom: 16 }}>
