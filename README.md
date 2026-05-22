@@ -39,7 +39,9 @@ Static output in `build/`.
 
 This repo ships a **static CRA bundle only**. The Express API lives in the main [ClarityRx](https://github.com/rphshabaz-learner/Clarityrx) repo (`api/index.js` on Vercel).
 
-In the **clarityrx-pos** Vercel project, set build-time env vars (then redeploy):
+This repo commits `.env.production` and `vercel.json` with the current ClarityRx API host. Update both when the pharmacy deployment URL changes, then redeploy.
+
+You can override via the **clarityrx-pos** Vercel project env vars (then redeploy):
 
 | Variable | Example | Notes |
 |----------|---------|--------|
