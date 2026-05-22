@@ -477,7 +477,7 @@ export default function PosScreen() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 110px 80px 80px 30px",
+                    gridTemplateColumns: "1fr 132px 80px 80px 44px",
                     gap: 8,
                     padding: "8px 0",
                     borderBottom: "1px solid #f3f4f6",
@@ -505,7 +505,7 @@ export default function PosScreen() {
                       className="pos-item"
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "1fr 110px 80px 80px 30px",
+                        gridTemplateColumns: "1fr 132px 80px 80px 44px",
                         gap: 8,
                         alignItems: "center",
                         borderBottom: "1px solid #f3f4f6",
@@ -516,13 +516,13 @@ export default function PosScreen() {
                         <div style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{item.name}</div>
                         <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{item.category}</div>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "28px 42px 28px", gap: 4, alignItems: "center" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "44px 52px 44px", gap: 4, alignItems: "center" }}>
                         <button
                           type="button"
-                          className="btn-secondary"
-                          style={{ minHeight: 28, padding: 0 }}
+                          className="btn-secondary crx-qty-btn"
                           onClick={() => updateCartQty(item.sku, item.qty - 1)}
                           title="Decrease quantity"
+                          aria-label="Decrease quantity"
                         >
                           -
                         </button>
@@ -532,15 +532,15 @@ export default function PosScreen() {
                           min="0"
                           value={item.qty}
                           onChange={(e) => updateCartQty(item.sku, e.target.value)}
-                          style={{ height: 30, padding: "4px 6px", textAlign: "center" }}
+                          style={{ padding: "4px 6px", textAlign: "center" }}
                           title="Quantity"
                         />
                         <button
                           type="button"
-                          className="btn-secondary"
-                          style={{ minHeight: 28, padding: 0 }}
+                          className="btn-secondary crx-qty-btn"
                           onClick={() => updateCartQty(item.sku, item.qty + 1)}
                           title="Increase quantity"
+                          aria-label="Increase quantity"
                         >
                           +
                         </button>
@@ -551,9 +551,10 @@ export default function PosScreen() {
                       </div>
                       <button
                         type="button"
+                        className="crx-icon-btn"
                         onClick={() => removeFromCart(item.sku)}
-                        style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: 14 }}
                         title="Remove item"
+                        aria-label="Remove item"
                       >
                         ×
                       </button>
@@ -769,8 +770,7 @@ export default function PosScreen() {
               </div>
               <button
                 type="button"
-                className="btn-primary"
-                style={{ width: "100%", justifyContent: "center", padding: 13, fontSize: 15, borderRadius: 10 }}
+                className="btn-primary crx-charge-btn"
                 onClick={handleCharge}
                 disabled={(cart.length === 0 && !selectedPickup) || charging}
               >
