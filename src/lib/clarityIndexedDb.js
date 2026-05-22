@@ -12,7 +12,7 @@
 import { scopedIndexedDbName } from "../session/scopedStorage";
 
 const BASE_DB_NAME = "clarityrx-local-v1";
-const DB_VERSION = 8;
+const DB_VERSION = 10;
 const STORE_KV = "kv";
 const STORE_ACTIVITIES = "activities";
 const STORE_DPD_PRODUCTS = "dpd_products";
@@ -21,7 +21,11 @@ const STORE_RX_WORK_ITEMS = "rx_work_items";
 const STORE_RX_STAGE_EVENTS = "rx_stage_events";
 const STORE_RX_ATTACHMENTS = "rx_attachments";
 const STORE_PURCHASE_ORDERS = "purchase_orders";
+const STORE_REPLENISHMENT_RULES = "replenishment_rules";
+const STORE_VENDOR_RETURNS = "vendor_returns";
+const STORE_DAMAGED_GOODS = "damaged_goods";
 const STORE_FOLLOWUPS = "follow_ups";
+const STORE_POS_PROMOTIONS = "pos_promotions";
 
 function txDone(tx) {
   return new Promise((resolve, reject) => {
@@ -92,6 +96,24 @@ export function openClarityDb() {
         store.createIndex("status", "status", { unique: false });
         store.createIndex("supplier", "supplier", { unique: false });
       }
+      if (!db.objectStoreNames.contains(STORE_REPLENISHMENT_RULES)) {
+        const store = db.createObjectStore(STORE_REPLENISHMENT_RULES, { keyPath: "id" });
+        store.createIndex("supplier", "supplier", { unique: false });
+        store.createIndex("sku", "sku", { unique: false });
+        store.createIndex("enabled", "enabled", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_VENDOR_RETURNS)) {
+        const store = db.createObjectStore(STORE_VENDOR_RETURNS, { keyPath: "id" });
+        store.createIndex("supplier", "supplier", { unique: false });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("createdAt", "createdAt", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_DAMAGED_GOODS)) {
+        const store = db.createObjectStore(STORE_DAMAGED_GOODS, { keyPath: "id" });
+        store.createIndex("supplier", "supplier", { unique: false });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("createdAt", "createdAt", { unique: false });
+      }
       if (!db.objectStoreNames.contains(STORE_FOLLOWUPS)) {
         const store = db.createObjectStore(STORE_FOLLOWUPS, { keyPath: "id" });
         store.createIndex("status", "status", { unique: false });
@@ -103,6 +125,14 @@ export function openClarityDb() {
         if (!fuStore.indexNames.contains("rxId")) {
           fuStore.createIndex("rxId", "rxId", { unique: false });
         }
+      }
+      if (!db.objectStoreNames.contains(STORE_POS_PROMOTIONS)) {
+        const store = db.createObjectStore(STORE_POS_PROMOTIONS, { keyPath: "id" });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("type", "type", { unique: false });
+        store.createIndex("source", "source", { unique: false });
+        store.createIndex("startAt", "startAt", { unique: false });
+        store.createIndex("endAt", "endAt", { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -596,6 +626,87 @@ export async function updatePurchaseOrderStatus(orderNumber, status) {
   await txDone(tx);
 }
 
+export async function getPurchaseOrder(orderNumber) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_PURCHASE_ORDERS], "readonly");
+  const order = await promisifyRequest(tx.objectStore(STORE_PURCHASE_ORDERS).get(orderNumber));
+  await txDone(tx);
+  return order || null;
+}
+
+export async function deletePurchaseOrder(orderNumber) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_PURCHASE_ORDERS], "readwrite");
+  tx.objectStore(STORE_PURCHASE_ORDERS).delete(orderNumber);
+  await txDone(tx);
+}
+
+// ─── REPLENISHMENT RULES ───────────────────────────────────────────────────
+
+export async function listReplenishmentRules() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_REPLENISHMENT_RULES], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_REPLENISHMENT_RULES).getAll());
+  await txDone(tx);
+  return all.sort((a, b) => String(a.sku || "").localeCompare(String(b.sku || "")));
+}
+
+export async function saveReplenishmentRule(rule) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_REPLENISHMENT_RULES], "readwrite");
+  tx.objectStore(STORE_REPLENISHMENT_RULES).put(rule);
+  await txDone(tx);
+}
+
+export async function deleteReplenishmentRule(id) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_REPLENISHMENT_RULES], "readwrite");
+  tx.objectStore(STORE_REPLENISHMENT_RULES).delete(id);
+  await txDone(tx);
+}
+
+// ─── VENDOR RETURNS (RTV) ──────────────────────────────────────────────────
+
+export async function listVendorReturns() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_VENDOR_RETURNS], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_VENDOR_RETURNS).getAll());
+  await txDone(tx);
+  return all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+export async function saveVendorReturn(row) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_VENDOR_RETURNS], "readwrite");
+  tx.objectStore(STORE_VENDOR_RETURNS).put(row);
+  await txDone(tx);
+}
+
+export async function getVendorReturn(id) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_VENDOR_RETURNS], "readonly");
+  const row = await promisifyRequest(tx.objectStore(STORE_VENDOR_RETURNS).get(id));
+  await txDone(tx);
+  return row || null;
+}
+
+// ─── DAMAGED GOODS ───────────────────────────────────────────────────────────
+
+export async function listDamagedGoods() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_DAMAGED_GOODS], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_DAMAGED_GOODS).getAll());
+  await txDone(tx);
+  return all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+export async function saveDamagedGoods(row) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_DAMAGED_GOODS], "readwrite");
+  tx.objectStore(STORE_DAMAGED_GOODS).put(row);
+  await txDone(tx);
+}
+
 // ─── PATIENT FOLLOW-UPS (reminders for phone or in-person contact) ─────────
 
 export async function putFollowUp(row) {
@@ -633,5 +744,46 @@ export async function deleteFollowUp(id) {
   const db = await getClarityDb();
   const tx = db.transaction([STORE_FOLLOWUPS], "readwrite");
   tx.objectStore(STORE_FOLLOWUPS).delete(id);
+  await txDone(tx);
+}
+
+// ─── POS PROMOTIONS ──────────────────────────────────────────────────────────
+
+const PROMO_SYNC_KV_KEY = "pos.promotions.sync";
+
+export async function listPosPromotions() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_PROMOTIONS], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_POS_PROMOTIONS).getAll());
+  await txDone(tx);
+  return all.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+}
+
+export async function savePosPromotion(campaign) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_PROMOTIONS], "readwrite");
+  tx.objectStore(STORE_POS_PROMOTIONS).put(campaign);
+  await txDone(tx);
+}
+
+export async function deletePosPromotion(id) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_PROMOTIONS], "readwrite");
+  tx.objectStore(STORE_POS_PROMOTIONS).delete(id);
+  await txDone(tx);
+}
+
+export async function getPosPromotionSyncMeta() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_KV], "readonly");
+  const row = await promisifyRequest(tx.objectStore(STORE_KV).get(PROMO_SYNC_KV_KEY));
+  await txDone(tx);
+  return row?.value || { lastSyncAt: null, lastSource: null, pendingCount: 0 };
+}
+
+export async function savePosPromotionSyncMeta(meta) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_KV], "readwrite");
+  tx.objectStore(STORE_KV).put({ key: PROMO_SYNC_KV_KEY, value: meta, updatedAt: new Date().toISOString() });
   await txDone(tx);
 }

@@ -1,3 +1,4 @@
+/** Optional deep-link to main pharmacy UI — not used by the till runtime. */
 const LOCAL_PHARMACY_APP_URL = "http://localhost:3000";
 
 function trimTrailingSlash(value) {

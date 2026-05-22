@@ -32,9 +32,11 @@ Output: `build-pos/` (CRA bundle with `REACT_APP_POS_APP=1`).
 | Variable | Purpose |
 |----------|---------|
 | `REACT_APP_POS_APP=1` | Select POS entry (set automatically by `start:pos` / `build:pos`) |
-| `REACT_APP_POS_APP_URL` | URL of the POS app (main app opens this from the sidebar) |
-| `REACT_APP_API_BASE_URL` | Pharmacy API (default `http://localhost:4000/api`) |
-| `REACT_APP_POS_API_URL` | Optional dedicated POS microservice (`clarityrx/pos-server`) |
+| `REACT_APP_POS_AUTH_URL` | Till operator sign-in (`/auth/*`) |
+| `REACT_APP_POS_TRANSMIT_URL` | Sales + inventory transmit (`/pos/*`) |
+| `REACT_APP_API_BASE_URL` | Fallback when `POS_*` URLs are unset |
+| `REACT_APP_POS_STORE_ID` | Store id on transmit requests |
+| `REACT_APP_POS_PICKUP_SYNC` | `1` = optional pickup queue Socket.IO |
 
 ## Desktop (Electron)
 
@@ -55,9 +57,18 @@ Receipt design references live in `docs/receipts/`.
 - `clarityrx-pos-receipt-80mm.txt` is a 42-character thermal receipt layout for 80mm POS printers.
 - `clarityrx-pos-receipt-preview.html` is a ClarityRx POS receipt preview modal with print queue, reprint, audit, barcode, and QR sections.
 
+## Purchasing & receiving
+
+Workspace tab **Purchasing** — POs, EDI submit, receive (inventory sync), replenishment, backorders, RTV, damaged goods. See [purchasing-receiving.md](./purchasing-receiving.md).
+
+## Securelink (integrated card)
+
+When `REACT_APP_SECURELINK_ENABLED=1`, Debit and Credit Card charges use the pinpad before `complete-sale`. See [securelink-integration.md](./securelink-integration.md).
+
 ## Architecture
 
-- Entry: `src/apps/pos/PosApp.jsx`
-- Till UI: `src/modules/pos/*` (shared with pharmacy repo)
-- Pickup API: main server `/api/pos/*` via `src/services/posApi.js`
-- Main pharmacy app: POS nav item opens the standalone POS URL in a new tab
+- Entry: `src/index.js` → `App.jsx`
+- Till UI: `src/modules/pos/*`
+- Auth: `REACT_APP_POS_AUTH_URL` → `AuthContext` (`/auth/*`)
+- Pharmacy boundary: `REACT_APP_POS_TRANSMIT_URL` → `posApi.js` (sales + inventory only)
+- Main pharmacy app: separate workspace; opens this till in a new tab

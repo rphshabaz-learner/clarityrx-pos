@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../AuthContext";
+import { useRoleAccess } from "../../RoleAccessContext";
 import { usePosWorkspaceData } from "../../hooks/usePosWorkspaceData";
 import PosDemographicBar from "../../components/pos/PosDemographicBar";
 import PosFavoritesPanel from "../../components/pos/PosFavoritesPanel";
 import PosManagePanel from "../../components/pos/PosManagePanel";
-import { usePosPickups } from "../../hooks/usePosPickups";
+import PosPromotionsPanel from "../../components/pos/promotions/PosPromotionsPanel";
+import PosPurchasingPanel from "../../components/pos/purchasing/PosPurchasingPanel";
 import {
   favoriteItemToCartLine,
   loadPosDemographicConfig,
@@ -13,15 +15,22 @@ import {
   savePosFavoritesConfig,
   serviceItemToCartLine,
 } from "../../lib/posFavorites";
-import { completePosSale, lookupPosPickup } from "../../services/posApi";
-import { PickupQueue } from "./PickupQueue";
+import { useSecurelinkPayment } from "../../hooks/useSecurelinkPayment";
+import { isCardPayMethod } from "../../lib/posPayments";
+import { isSecurelinkEnabled, resolveSecurelinkTerminalId } from "../../lib/securelinkConfig";
+import { completePosSale, lookupPosPickup, transmitInventoryAdjustments } from "../../services/posApi";
 import { POS_DEFAULT_CART, POS_FRONT_STORE_ITEMS } from "./posCatalog";
 
 const POS_WORKSPACE_TABS = [
   { id: "till", label: "Till" },
+  { id: "purchasing", label: "Purchasing" },
+  { id: "promotions", label: "Promotions" },
   { id: "favorites", label: "Favorites" },
   { id: "manage", label: "Manage" },
 ];
+
+const POS_TILL_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
+const POS_TILL_STORAGE_KEY = "clarityrx.pos.selectedTill";
 
 const QUICK_SERVICE_ITEMS = [
   { sku: "SVC-BAG", name: "Reusable bag", price: 0.25 },
@@ -31,6 +40,15 @@ const QUICK_SERVICE_ITEMS = [
 
 function clampMoney(value) {
   return Math.max(0, Number(value) || 0);
+}
+
+function loadSelectedTillNumber() {
+  try {
+    const saved = Number(window.localStorage.getItem(POS_TILL_STORAGE_KEY));
+    return POS_TILL_OPTIONS.includes(saved) ? saved : 1;
+  } catch {
+    return 1;
+  }
 }
 
 function PosToast({ message, type = "info", duration = 3000, onClose }) {
@@ -69,10 +87,13 @@ function PosToast({ message, type = "info", duration = 3000, onClose }) {
 
 export default function PosScreen() {
   const { accessToken } = useAuth();
+  const { hasPermission } = useRoleAccess();
   const { logActivity, runAutosave } = usePosWorkspaceData();
-  const { pickups, isLoading, error, reload } = usePosPickups();
+  const canPurchasing = hasPermission("pos.purchasing");
+  const canPromotions = hasPermission("pos.promotions");
 
   const [workspaceTab, setWorkspaceTab] = useState("till");
+  const [selectedTillNumber, setSelectedTillNumber] = useState(loadSelectedTillNumber);
   const [favoritesConfig, setFavoritesConfig] = useState(loadPosFavoritesConfig);
   const [demographicConfig, setDemographicConfig] = useState(loadPosDemographicConfig);
   const [selectedDemographicId, setSelectedDemographicId] = useState(
@@ -92,7 +113,10 @@ export default function PosScreen() {
   const [tenderedAmount, setTenderedAmount] = useState("");
   const [toast, setToast] = useState(null);
   const [charging, setCharging] = useState(false);
+  const [cardPaymentStatus, setCardPaymentStatus] = useState(null);
   const lastAutoAddIdentifier = useRef("");
+  const { processCardPayment, cancelActivePayment } = useSecurelinkPayment();
+  const securelinkActive = isSecurelinkEnabled();
 
   const effectiveDemographicId = demographicConfig.skipPrompt
     ? demographicConfig.defaultId
@@ -102,6 +126,14 @@ export default function PosScreen() {
 
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedBagScan = bagScan.trim();
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(POS_TILL_STORAGE_KEY, String(selectedTillNumber));
+    } catch {
+      // Ignore storage failures; the selected till still works for this session.
+    }
+  }, [selectedTillNumber]);
 
   const filteredStoreItems = useMemo(() => {
     if (!normalizedSearch) return POS_FRONT_STORE_ITEMS;
@@ -170,7 +202,7 @@ export default function PosScreen() {
         }
         setSelectedPickup(pickup);
         setToast({
-          message: `${pickup.patientName} — ${pickup.rxCount} Rx ($${Number(pickup.totalCopay || 0).toFixed(2)})`,
+          message: `${pickup.rxCount} Rx attached ($${Number(pickup.totalCopay || 0).toFixed(2)})`,
           type: "success",
         });
         setBagScan("");
@@ -262,13 +294,27 @@ export default function PosScreen() {
     }
 
     setCharging(true);
+    setCardPaymentStatus(null);
     try {
+      let cardPayment = null;
+      if (securelinkActive && isCardPayMethod(payMethod)) {
+        const terminalId = resolveSecurelinkTerminalId(selectedTillNumber, demographicConfig);
+        cardPayment = await processCardPayment({
+          amount: total,
+          payMethod,
+          tillNumber: selectedTillNumber,
+          terminalId,
+          accessToken,
+          onStatus: setCardPaymentStatus,
+        });
+      }
+
       const result = await completePosSale(
         {
           pickupId: selectedPickup?.id || null,
           cart,
           payMethod,
-          tillNumber: null,
+          tillNumber: selectedTillNumber,
           rxCopay,
           demographic: demographicLabel,
           printMerchantCopy: demographicConfig.printMerchantCopy,
@@ -281,9 +327,36 @@ export default function PosScreen() {
           taxExempt,
           tenderedAmount: Number.isFinite(numericTenderedAmount) ? numericTenderedAmount : null,
           changeDue: Number(changeDue.toFixed(2)),
+          cardPayment: cardPayment
+            ? {
+                reference: cardPayment.reference || cardPayment.authCode,
+                authCode: cardPayment.authCode,
+                last4: cardPayment.last4,
+                cardBrand: cardPayment.cardBrand,
+                entryMethod: cardPayment.entryMethod,
+                terminalId: resolveSecurelinkTerminalId(selectedTillNumber, demographicConfig),
+              }
+            : null,
         },
         accessToken
       );
+
+      const inventoryLines = cart
+        .filter((line) => line?.sku && Number(line.qty) > 0)
+        .map((line) => ({
+          sku: String(line.sku),
+          quantityDelta: -Math.abs(Number(line.qty)),
+        }));
+      if (inventoryLines.length > 0) {
+        try {
+          await transmitInventoryAdjustments(inventoryLines, accessToken, {
+            tillNumber: selectedTillNumber,
+            invoiceNumber: result?.invoiceNumber || null,
+          });
+        } catch (inventoryError) {
+          console.warn("inventory transmit", inventoryError?.message || inventoryError);
+        }
+      }
 
       const merchantNote =
         payMethod !== "Cash" && !demographicConfig.printMerchantCopy ? " Merchant copy skipped." : "";
@@ -300,6 +373,7 @@ export default function PosScreen() {
         discount: Number(discount.toFixed(2)),
         tax: Number(tax.toFixed(2)),
         payMethod,
+        tillNumber: selectedTillNumber,
         demographic: demographicLabel,
         lineItems: cart.length,
         pickupId: selectedPickup?.id || null,
@@ -312,13 +386,20 @@ export default function PosScreen() {
       setTenderedAmount("");
       setSelectedPickup(null);
       setSelectedDemographicId(demographicConfig.defaultId);
-      reload();
     } catch (cause) {
       setToast({ message: cause?.message || "Payment error", type: "error" });
     } finally {
       setCharging(false);
+      setCardPaymentStatus(null);
       setShowDemographicPrompt(false);
     }
+  };
+
+  const handleCancelCardPayment = async () => {
+    await cancelActivePayment(accessToken);
+    setCharging(false);
+    setCardPaymentStatus(null);
+    setToast({ message: "Card payment cancelled.", type: "info" });
   };
 
   const handleCharge = async () => {
@@ -351,7 +432,30 @@ export default function PosScreen() {
   return (
     <div className="crx-content screen-enter">
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Point of Sale</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Point of Sale</div>
+            <div style={{ marginTop: 4, fontSize: 12, color: "#6b7280", fontWeight: 700 }}>
+              Active till: Till {selectedTillNumber}
+            </div>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6b7280", fontWeight: 800, textTransform: "uppercase" }}>
+            Till
+            <select
+              className="crx-input"
+              value={selectedTillNumber}
+              onChange={(event) => setSelectedTillNumber(Number(event.target.value))}
+              style={{ width: 112, height: 40, padding: "0 12px", fontSize: 13, fontWeight: 700, textTransform: "none" }}
+              aria-label="Select active till"
+            >
+              {POS_TILL_OPTIONS.map((tillNumber) => (
+                <option key={tillNumber} value={tillNumber}>
+                  Till {tillNumber}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
       <PosDemographicBar
@@ -363,7 +467,11 @@ export default function PosScreen() {
       />
 
       <div className="crx-tabs" style={{ marginBottom: 16 }}>
-        {POS_WORKSPACE_TABS.map((tab) => (
+        {POS_WORKSPACE_TABS.filter((tab) => {
+          if (tab.id === "purchasing" && !canPurchasing) return false;
+          if (tab.id === "promotions" && !canPromotions) return false;
+          return true;
+        }).map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -393,21 +501,24 @@ export default function PosScreen() {
         />
       ) : null}
 
-      {workspaceTab === "till" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "280px 1fr 320px", gap: 16 }}>
-          <div>
-            <div className="crx-card-header" style={{ marginBottom: 8 }}>
-              <span className="crx-card-title">Ready for pickup</span>
-            </div>
-            <PickupQueue
-              pickups={pickups}
-              selectedPickupId={selectedPickup?.id}
-              onSelect={setSelectedPickup}
-              isLoading={isLoading}
-              error={error}
-            />
-          </div>
+      {workspaceTab === "purchasing" ? (
+        <PosPurchasingPanel
+          accessToken={accessToken}
+          tillNumber={selectedTillNumber}
+          onNotify={(message, type) => setToast({ message, type: type || "info" })}
+          logActivity={logActivity}
+        />
+      ) : null}
 
+      {workspaceTab === "promotions" ? (
+        <PosPromotionsPanel
+          onNotify={(message, type) => setToast({ message, type: type || "info" })}
+          logActivity={logActivity}
+        />
+      ) : null}
+
+      {workspaceTab === "till" ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="crx-card" style={{ padding: "12px 18px" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: 8, textTransform: "uppercase" }}>
@@ -423,7 +534,7 @@ export default function PosScreen() {
               />
               {selectedPickup ? (
                 <div style={{ marginTop: 10, fontSize: 13, color: "#15803d", fontWeight: 600 }}>
-                  Attached: {selectedPickup.patientName} — copay ${rxCopay.toFixed(2)}
+                  Rx copay attached: ${rxCopay.toFixed(2)}
                 </div>
               ) : null}
               <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
@@ -691,6 +802,45 @@ export default function PosScreen() {
                   ) : null}
                 </div>
               ) : null}
+              {securelinkActive && isCardPayMethod(payMethod) ? (
+                <div
+                  style={{
+                    background: "#eff6ff",
+                    border: "1px solid #bfdbfe",
+                    borderRadius: 10,
+                    padding: 12,
+                    marginBottom: 14,
+                    fontSize: 13,
+                    color: "#1e40af",
+                  }}
+                >
+                  <strong>Securelink</strong> — card amount is sent to the pinpad when you charge. Terminal{" "}
+                  {resolveSecurelinkTerminalId(selectedTillNumber, demographicConfig)}.
+                </div>
+              ) : null}
+              {charging && cardPaymentStatus ? (
+                <div
+                  style={{
+                    background: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: 10,
+                    padding: 12,
+                    marginBottom: 14,
+                    fontSize: 13,
+                    color: "#166534",
+                  }}
+                >
+                  {cardPaymentStatus.message || "Waiting for pinpad…"}
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ display: "block", marginTop: 10, width: "100%", minHeight: 44 }}
+                    onClick={handleCancelCardPayment}
+                  >
+                    Cancel card payment
+                  </button>
+                </div>
+              ) : null}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 92px", gap: 8, marginBottom: 12 }}>
                 <select
                   className="crx-select"
@@ -769,7 +919,11 @@ export default function PosScreen() {
                 onClick={handleCharge}
                 disabled={(cart.length === 0 && !selectedPickup) || charging}
               >
-                {charging ? "Processing…" : `Charge $${total.toFixed(2)}`}
+                {charging
+                  ? securelinkActive && isCardPayMethod(payMethod)
+                    ? "Pinpad…"
+                    : "Processing…"
+                  : `Charge $${total.toFixed(2)}`}
               </button>
             </div>
           </div>

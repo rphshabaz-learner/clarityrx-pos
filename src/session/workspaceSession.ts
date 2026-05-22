@@ -27,8 +27,8 @@ declare global {
   }
 }
 
-const DEFAULT_WORKSPACE_ID = "default-workspace";
-const DEFAULT_DEVICE_LABEL = "Browser workstation";
+const DEFAULT_WORKSPACE_ID = "default-store";
+const DEFAULT_DEVICE_LABEL = "POS till";
 
 function readSearchParam(name: string): string {
   if (typeof window === "undefined") return "";
@@ -75,7 +75,11 @@ export function resolveWorkspaceSession(overrides: Partial<WorkspaceSessionConte
 
   const workspaceId =
     overrides.workspaceId ||
+    readSearchParam("storeId") ||
     readSearchParam("workspaceId") ||
+    (typeof process !== "undefined" && process.env?.REACT_APP_POS_STORE_ID) ||
+    (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_POS_STORE_ID) ||
+    (typeof window !== "undefined" ? window.localStorage.getItem("clarityrx-pos-store-id") || "" : "") ||
     (typeof window !== "undefined" ? window.localStorage.getItem("clarityrx-workspace-id") || "" : "") ||
     DEFAULT_WORKSPACE_ID;
   const context: WorkspaceSessionContext = {
@@ -90,6 +94,7 @@ export function resolveWorkspaceSession(overrides: Partial<WorkspaceSessionConte
   };
 
   if (typeof window !== "undefined") {
+    window.localStorage.setItem("clarityrx-pos-store-id", context.workspaceId);
     window.localStorage.setItem("clarityrx-workspace-id", context.workspaceId);
     window.__CLARITYRX_SESSION__ = context;
   }

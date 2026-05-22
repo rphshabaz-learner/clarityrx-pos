@@ -4,6 +4,7 @@ export const POS_FAVORITES_STORAGE_KEY = "clarityrx-pos-favorites-v1";
 export const POS_DEMOGRAPHICS_STORAGE_KEY = "clarityrx-pos-demographics-v1";
 
 export const DEFAULT_TILL_OPTIONS = {
+  securelinkTerminalPrefix: "POS-",
   printMerchantCopy: true,
   taxRate: 0.05,
   defaultDiscountType: "none",
@@ -103,10 +104,16 @@ export function loadPosDemographicConfig() {
     ? parsed.defaultDiscountType
     : DEFAULT_TILL_OPTIONS.defaultDiscountType;
 
+  const securelinkTerminalPrefix =
+    typeof parsed?.securelinkTerminalPrefix === "string" && parsed.securelinkTerminalPrefix.trim()
+      ? parsed.securelinkTerminalPrefix.trim()
+      : DEFAULT_TILL_OPTIONS.securelinkTerminalPrefix;
+
   return {
     options,
     defaultId,
     skipPrompt,
+    securelinkTerminalPrefix,
     printMerchantCopy: parsed?.printMerchantCopy !== false,
     taxRate: Math.max(0, taxRate),
     defaultDiscountType,

@@ -1,6 +1,6 @@
 # ClarityRx POS
 
-Standalone cashier till for ClarityRx pharmacies. Connects to the [ClarityRx](https://github.com/rphshabaz-learner/Clarityrx) pharmacy API for authentication and Kroll pickup sales.
+Standalone cashier till for ClarityRx pharmacies. Runs **independently** of the pharmacy workspace; the backend receives **completed sales (transactions)** and **inventory adjustments** only.
 
 **Repository:** https://github.com/rphshabaz-learner/clarityrx-pos
 
@@ -31,9 +31,14 @@ Opens at **http://localhost:3001**.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `REACT_APP_API_BASE_URL` | `http://localhost:4000/api` | Pharmacy backend (auth, POS routes) |
-| `REACT_APP_PACKAGING_SOCKET_URL` | API host without `/api` | Realtime `posPickupQueueUpdated` events |
-| `REACT_APP_PHARMACY_APP_URL` | `http://localhost:3000` | Link back to main pharmacy workspace |
+| `REACT_APP_POS_AUTH_URL` | `http://localhost:4000/api` | Till operator sign-in (`/auth/*`) |
+| `REACT_APP_POS_TRANSMIT_URL` | `http://localhost:4000/api` | Outbound sales + inventory (`/pos/*`) |
+| `REACT_APP_API_BASE_URL` | (fallback) | Sets both URLs when `POS_*` are unset |
+| `REACT_APP_POS_STORE_ID` | `default-store` | Store id on transmit requests |
+| `REACT_APP_POS_PICKUP_SYNC` | (unset) | `1` = poll/Socket.IO pickup queue (optional) |
+| `REACT_APP_POS_PHARMACY_AUDIT` | (unset) | `1` = forward audit to pharmacy `/audit/events` |
+| `REACT_APP_SECURELINK_ENABLED` | (unset) | `1` = integrated pinpad for Debit / Credit Card |
+| `REACT_APP_SECURELINK_MOCK` | (unset) | `1` = mock pinpad approval (dev only) |
 
 ## Build
 
@@ -60,7 +65,20 @@ If `REACT_APP_API_BASE_URL` is missing, the till incorrectly calls its own origi
 
 Production builds log a warning when `REACT_APP_API_BASE_URL` is unset (`scripts/check-production-env.js`). The till will not work until you set it and redeploy.
 
+## Pharmacy boundary
+
+| Stays on the till (local) | Transmitted to pharmacy API |
+|---------------------------|-----------------------------|
+| Favorites, demographics, till layout | `POST /pos/complete-sale` (transaction) |
+| Purchase orders, replenishment rules, RTV, damaged goods (IndexedDB) | `POST /pos/inventory/adjustments` (sales + **receiving**) |
+| Activity log (IndexedDB) | `POST /pos/purchasing/*` (EDI submit, catalog/invoice download when backend routes exist) |
+| Operator session | Rx bag lookup only when scanning (`/pos/pickups/lookup`) |
+
+See [docs/purchasing-receiving.md](docs/purchasing-receiving.md) for wholesaler PO/receive workflows.
+
+Clinical queues, patients, prescriptions, and pharmacy audit streams are **not** used by this app.
+
 ## Related repos
 
-- **ClarityRx** — main pharmacy workspace; sidebar POS opens this app
-- **clarityrx/pos-server** (optional) — payables microservice on port 4001
+- **ClarityRx** — main pharmacy workspace (separate UI; opens this till in a new tab)
+- **clarityrx/pos-server** (optional) — dedicated transmit/auth service on port 4001

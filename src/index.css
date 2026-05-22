@@ -36,19 +36,6 @@
   padding: 8px 12px !important;
 }
 
-.auth-login-visual > div {
-  padding: 16px !important;
-}
-
-.auth-preview-top > div {
-  padding: 20px !important;
-}
-
-.auth-preview-actions > div {
-  min-height: 80px !important;
-  padding: 12px !important;
-}
-
 .auth-panel-title {
   font-size: 1.875rem;
   line-height: 1.12;
@@ -56,26 +43,6 @@
 
 .auth-login-status {
   justify-content: flex-start;
-}
-
-.auth-login-visual {
-  justify-items: center;
-}
-
-.auth-hero-title {
-  font-size: 2.375rem;
-}
-
-.auth-hero-copy {
-  font-size: 1rem;
-}
-
-.auth-preview-top {
-  grid-template-columns: 1fr;
-}
-
-.auth-preview-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 @media (min-width: 640px) {
@@ -97,21 +64,6 @@
     gap: 1rem;
   }
 
-  .auth-hero-title {
-    font-size: 3rem;
-  }
-
-  .auth-hero-copy {
-    font-size: 1.125rem;
-  }
-
-  .auth-preview-top {
-    grid-template-columns: 1fr 156px;
-  }
-
-  .auth-preview-actions {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 @media (min-width: 1024px) {
@@ -123,22 +75,13 @@
   }
 
   .auth-login-main {
-    grid-template-columns: minmax(320px, 456px) minmax(420px, 1fr);
-    gap: 5rem;
+    grid-template-columns: minmax(320px, 456px);
+    justify-content: center;
     padding-top: 2rem;
     padding-bottom: 4rem;
   }
 
   .auth-login-card {
-    justify-self: end;
-  }
-
-  .auth-login-visual {
-    justify-items: start;
-    text-align: left;
-  }
-
-  .auth-hero-title {
-    font-size: 3.75rem;
+    justify-self: center;
   }
 }

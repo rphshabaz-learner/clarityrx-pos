@@ -19,6 +19,9 @@ export default function PosManagePanel({
   const [quickTenderText, setQuickTenderText] = useState(
     (demographicConfig.quickTenderAmounts || [10, 20, 50, 100]).join(", ")
   );
+  const [securelinkTerminalPrefix, setSecurelinkTerminalPrefix] = useState(
+    demographicConfig.securelinkTerminalPrefix || "POS-"
+  );
 
   const addTab = () => {
     const label = newTabLabel.trim();
@@ -53,6 +56,7 @@ export default function PosManagePanel({
     onSaveFavorites({ tabs: draftTabs, items: draftItems });
     onSaveDemographics({
       ...demographicConfig,
+      securelinkTerminalPrefix: securelinkTerminalPrefix.trim() || "POS-",
       printMerchantCopy,
       taxRate: Math.max(0, Number(taxRatePercent) || 0) / 100,
       defaultDiscountType,
@@ -69,6 +73,19 @@ export default function PosManagePanel({
         <div className="crx-card-title" style={{ marginBottom: 12 }}>
           Till options
         </div>
+        <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 10 }}>
+          Securelink terminal prefix
+          <input
+            className="crx-input"
+            value={securelinkTerminalPrefix}
+            onChange={(e) => setSecurelinkTerminalPrefix(e.target.value)}
+            placeholder="POS-"
+            style={{ marginTop: 6, width: "100%", maxWidth: 160 }}
+          />
+          <span style={{ display: "block", marginTop: 4, fontWeight: 500, color: "#6b7280" }}>
+            Example: till 3 → {(String(securelinkTerminalPrefix || "POS-").trim() || "POS-") + "03"}
+          </span>
+        </label>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
           <input
             type="checkbox"

@@ -4,7 +4,7 @@ import { io } from "socket.io-client";
 import { useAuth } from "../AuthContext";
 import { fetchPosPickups } from "../services/posApi";
 import { queryClient, queryKeys } from "../lib/queryClient";
-import { resolvePackagingSocketUrl, resolveApiBaseUrl } from "../lib/apiConfig";
+import { isPosPickupSyncEnabled, resolvePackagingSocketUrl, resolvePosTransmitApiBaseUrl } from "../lib/apiConfig";
 
 const REALTIME_POS_EVENT = "posPickupQueueUpdated";
 const POLL_INTERVAL_MS = 5000;
@@ -21,7 +21,7 @@ export function usePosPickups() {
   } = useQuery({
     queryKey: [...queryKeys.posPickups, accessToken],
     queryFn: () => fetchPosPickups(accessToken),
-    enabled: Boolean(accessToken),
+    enabled: Boolean(accessToken) && isPosPickupSyncEnabled(),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
@@ -33,9 +33,9 @@ export function usePosPickups() {
   }, [accessToken, refetch]);
 
   useEffect(() => {
-    if (!accessToken) return undefined;
+    if (!accessToken || !isPosPickupSyncEnabled()) return undefined;
 
-    const socketUrl = resolvePackagingSocketUrl(resolveApiBaseUrl());
+    const socketUrl = resolvePackagingSocketUrl(resolvePosTransmitApiBaseUrl());
     const socket = io(socketUrl, {
       transports: ["websocket", "polling"],
       auth: { token: accessToken },

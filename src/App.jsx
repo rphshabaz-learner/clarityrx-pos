@@ -6,7 +6,6 @@ import { QueryProvider } from "./providers/QueryProvider";
 import PosScreen from "./modules/pos/PosScreen";
 import { PosAppDataProvider } from "./PosAppDataProvider";
 import PosGlobalStyles from "./PosGlobalStyles";
-import { resolvePharmacyAppUrl } from "./lib/pharmacyAppConfig";
 
 function PosLoading({ label = "Loading POS…" }) {
   return (
@@ -114,9 +113,6 @@ function PosShell() {
           </div>
         </div>
         <div className="crx-pos-app__actions">
-          <a className="btn-secondary" href={resolvePharmacyAppUrl()} style={{ textDecoration: "none" }}>
-            Pharmacy app
-          </a>
           <button type="button" className="btn-secondary" onClick={() => logout()}>
             Sign out
           </button>

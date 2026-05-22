@@ -1,6 +1,16 @@
-const LOCAL_API_BASE_URL = "http://localhost:4000/api";
+const LOCAL_POS_TRANSMIT_API_URL = "http://localhost:4000/api";
+const LOCAL_POS_AUTH_API_URL = "http://localhost:4000/api";
 const RUNTIME_API_BASE_URL_KEY = "clarityrx-pos-api-base-url";
 const RUNTIME_PACKAGING_SOCKET_URL_KEY = "clarityrx-pos-packaging-socket-url";
+
+function readConfiguredUrl(...candidates) {
+  for (const value of candidates) {
+    if (value) {
+      return normalizeApiBaseUrl(value);
+    }
+  }
+  return "";
+}
 
 function trimTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -58,15 +68,22 @@ function allowsSameOriginApiFallback() {
   return process.env.REACT_APP_SAME_ORIGIN_API === "1" || process.env.NEXT_PUBLIC_SAME_ORIGIN_API === "1";
 }
 
-export function resolveApiBaseUrl() {
-  const configured =
-    readSearchParam("apiBaseUrl") ||
-    readSearchParam("api") ||
-    getRuntimeApiBaseUrlOverride() ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.REACT_APP_API_BASE_URL;
+/**
+ * POS operator sign-in (local till session). Not used for pharmacy workspace data.
+ */
+export function resolvePosAuthApiBaseUrl() {
+  const configured = readConfiguredUrl(
+    readSearchParam("posAuthUrl"),
+    process.env.NEXT_PUBLIC_POS_AUTH_URL,
+    process.env.REACT_APP_POS_AUTH_URL,
+    readSearchParam("apiBaseUrl"),
+    readSearchParam("api"),
+    getRuntimeApiBaseUrlOverride(),
+    process.env.NEXT_PUBLIC_API_BASE_URL,
+    process.env.REACT_APP_API_BASE_URL
+  );
   if (configured) {
-    return normalizeApiBaseUrl(configured);
+    return configured;
   }
 
   if (
@@ -78,11 +95,61 @@ export function resolveApiBaseUrl() {
     return normalizeApiBaseUrl(`${window.location.origin}/api`);
   }
 
-  return LOCAL_API_BASE_URL;
+  return LOCAL_POS_AUTH_API_URL;
+}
+
+/**
+ * Outbound boundary to pharmacy: sales transactions and inventory adjustments only.
+ */
+export function resolvePosTransmitApiBaseUrl() {
+  const configured = readConfiguredUrl(
+    readSearchParam("posTransmitUrl"),
+    readSearchParam("posApiUrl"),
+    process.env.NEXT_PUBLIC_POS_TRANSMIT_URL,
+    process.env.REACT_APP_POS_TRANSMIT_URL,
+    process.env.NEXT_PUBLIC_POS_API_URL,
+    process.env.REACT_APP_POS_API_URL,
+    readSearchParam("apiBaseUrl"),
+    readSearchParam("api"),
+    getRuntimeApiBaseUrlOverride(),
+    process.env.NEXT_PUBLIC_API_BASE_URL,
+    process.env.REACT_APP_API_BASE_URL
+  );
+  if (configured) {
+    return configured;
+  }
+
+  if (
+    allowsSameOriginApiFallback() &&
+    typeof window !== "undefined" &&
+    window.location &&
+    !isLocalHostname(window.location.hostname)
+  ) {
+    return normalizeApiBaseUrl(`${window.location.origin}/api`);
+  }
+
+  return LOCAL_POS_TRANSMIT_API_URL;
+}
+
+/** @deprecated Use resolvePosTransmitApiBaseUrl */
+export function resolveApiBaseUrl() {
+  return resolvePosTransmitApiBaseUrl();
+}
+
+export function isPosPickupSyncEnabled() {
+  return process.env.REACT_APP_POS_PICKUP_SYNC === "1" || process.env.NEXT_PUBLIC_POS_PICKUP_SYNC === "1";
+}
+
+export function isPosPharmacyAuditEnabled() {
+  return process.env.REACT_APP_POS_PHARMACY_AUDIT === "1" || process.env.NEXT_PUBLIC_POS_PHARMACY_AUDIT === "1";
 }
 
 export function resolvePackagingApiBaseUrl() {
-  return normalizeApiBaseUrl(process.env.NEXT_PUBLIC_PACKAGING_API_URL || process.env.REACT_APP_PACKAGING_API_URL || resolveApiBaseUrl());
+  return normalizeApiBaseUrl(
+    process.env.NEXT_PUBLIC_PACKAGING_API_URL ||
+      process.env.REACT_APP_PACKAGING_API_URL ||
+      resolvePosTransmitApiBaseUrl()
+  );
 }
 
 export function resolvePackagingSocketUrl(packagingApiBaseUrl = resolvePackagingApiBaseUrl()) {
@@ -116,14 +183,14 @@ export function buildBackendConnectionMessage(apiBaseUrl) {
     /(^https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(target);
 
   if (productionLocalhost) {
-    return `Cannot reach the ClarityRx backend at ${target}. This deployed page is configured to use localhost, which points to the viewer's device. Set REACT_APP_API_BASE_URL to the deployed backend API URL.`;
+    return `Cannot reach the POS API at ${target}. This deployed page is configured to use localhost, which points to the viewer's device. Set REACT_APP_POS_TRANSMIT_URL (or REACT_APP_API_BASE_URL) to the deployed POS/pharmacy transmit API URL.`;
   }
 
   if (/vercel\.app/i.test(target)) {
-    return `Cannot reach the ClarityRx backend at ${target}. If that host is the main ClarityRx Vercel deployment, open Vercel → ClarityRx project → Settings → Deployment Protection and allow public access to Production (or use the stable production URL without protection). For local work, run the API in ../Clarityrx/clarityrx/server and set REACT_APP_API_BASE_URL=http://localhost:4000/api.`;
+    return `Cannot reach the POS API at ${target}. If that host is the main ClarityRx Vercel deployment, open Vercel → ClarityRx project → Settings → Deployment Protection and allow public access to Production (or use the stable production URL without protection). For local work, run the API in ../Clarityrx/clarityrx/server and set REACT_APP_POS_TRANSMIT_URL=http://localhost:4000/api.`;
   }
 
-  return `Cannot reach the ClarityRx backend at ${target}. Start the backend server or set REACT_APP_API_BASE_URL to the deployed backend API URL.`;
+  return `Cannot reach the POS API at ${target}. Start the transmit API or set REACT_APP_POS_TRANSMIT_URL to the deployed API URL.`;
 }
 
 function responseLooksLikeStaticFrontend(response) {
@@ -136,7 +203,7 @@ export function buildBackendHttpErrorMessage(apiBaseUrl, response) {
   const target = apiBaseUrl || "the configured API";
 
   if (looksLikeVercelDeploymentProtection(response)) {
-    return `The ClarityRx backend at ${target} returned HTTP ${status} (Vercel Deployment Protection). Disable protection on the main ClarityRx Production deployment, or point REACT_APP_API_BASE_URL at a publicly reachable API host.`;
+    return `The POS API at ${target} returned HTTP ${status} (Vercel Deployment Protection). Disable protection on the main ClarityRx Production deployment, or point REACT_APP_POS_TRANSMIT_URL at a publicly reachable API host.`;
   }
 
   const staticFrontend = responseLooksLikeStaticFrontend(response);
@@ -144,7 +211,7 @@ export function buildBackendHttpErrorMessage(apiBaseUrl, response) {
     return "";
   }
 
-  return `The ClarityRx backend at ${target} returned HTTP ${status || "a non-API response"}. Verify REACT_APP_API_BASE_URL points to the deployed Express API, not the static frontend URL.`;
+  return `The POS API at ${target} returned HTTP ${status || "a non-API response"}. Verify REACT_APP_POS_TRANSMIT_URL points to the deployed Express API, not the static frontend URL.`;
 }
 
 export function createBackendConnectionError(apiBaseUrl, cause) {

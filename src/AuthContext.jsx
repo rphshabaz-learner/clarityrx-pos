@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { registerPasskey as registerPasskeyRequest, startPasskeyLogin } from "./lib/webauthnClient";
-import { buildBackendHttpErrorMessage, fetchBackend, resolveApiBaseUrl } from "./lib/apiConfig";
+import { buildBackendHttpErrorMessage, fetchBackend, resolvePosAuthApiBaseUrl } from "./lib/apiConfig";
 import { buildSessionHeaders, resolveWorkspaceSession, sessionContextForAudit, updateWorkspaceSession } from "./session/workspaceSession";
 import { getScopedJson, removeLegacyAuth, setScopedJson } from "./session/scopedStorage";
 import {
@@ -13,7 +13,7 @@ import { workstationLockStore } from "./stores/workstationLockStore";
 
 const AuthContext = createContext(null);
 const STORAGE_KEY = "clarityrx-auth-v1";
-const API_BASE = resolveApiBaseUrl();
+const API_BASE = resolvePosAuthApiBaseUrl();
 
 async function requestJson(path, options = {}, accessToken = null) {
   const sessionContext = resolveWorkspaceSession();

@@ -9,8 +9,6 @@ import {
   User,
   Loader2,
   Pill,
-  ScanLine,
-  ClipboardList,
   Fingerprint,
   Wifi,
 } from "lucide-react";
@@ -520,47 +518,6 @@ export default function AuthScreen() {
             ) : null}
           </section>
 
-          <section className="auth-login-visual order-2 grid content-center text-center" aria-label="Point of sale preview">
-            <h2 className="auth-hero-title max-w-xl font-extrabold leading-none tracking-normal text-slate-950">
-              Ready for the next pickup.
-            </h2>
-            <p className="auth-hero-copy mt-6 max-w-xl leading-8 text-slate-600">
-              Fast sign-in for pharmacy staff, clear connection state, and controls that stay readable on a busy counter.
-            </p>
-
-            <div className="mt-8 grid w-full max-w-xl gap-4 rounded-lg border border-slate-200/90 bg-white/60 p-4 text-left shadow-2xl shadow-slate-700/10">
-              <div className="auth-preview-top grid gap-4">
-                <div className="rounded-lg border border-slate-200 bg-white p-5">
-                  <strong className="block text-base text-slate-900">Register 02</strong>
-                  <div className="mt-4 h-2.5 w-full rounded-full bg-slate-200" />
-                  <div className="mt-3 h-2.5 w-3/4 rounded-full bg-slate-200" />
-                  <div className="mt-3 h-2.5 w-1/2 rounded-full bg-slate-200" />
-                </div>
-                <div className="grid content-center rounded-lg bg-slate-950 p-5 text-white">
-                  <span className="text-xs font-bold text-slate-300">Today</span>
-                  <strong className="mt-1 text-3xl">38</strong>
-                  <span className="mt-1 text-xs font-bold text-slate-300">completed pickups</span>
-                </div>
-              </div>
-
-              <div className="auth-preview-actions grid grid-cols-2 gap-3">
-                <div className="grid min-h-20 content-end rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-extrabold text-cyan-900">
-                  <ScanLine className="mb-2 h-5 w-5" />
-                  Pickup
-                </div>
-                <div className="grid min-h-20 content-end rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-extrabold text-slate-700">
-                  <ClipboardList className="mb-2 h-5 w-5" />
-                  Scan Rx
-                </div>
-                <div className="grid min-h-20 content-end rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-extrabold text-slate-700">
-                  Front store
-                </div>
-                <div className="grid min-h-20 content-end rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-extrabold text-slate-700">
-                  Tender
-                </div>
-              </div>
-            </div>
-          </section>
         </main>
       </div>
     </div>

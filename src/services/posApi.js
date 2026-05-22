@@ -1,7 +1,7 @@
-import { buildBackendHttpErrorMessage, fetchBackend, resolveApiBaseUrl } from "../lib/apiConfig";
+import { buildBackendHttpErrorMessage, fetchBackend, resolvePosTransmitApiBaseUrl } from "../lib/apiConfig";
 import { buildSessionHeaders, resolveWorkspaceSession } from "../session/workspaceSession";
 
-const API_BASE = resolveApiBaseUrl();
+const TRANSMIT_API_BASE = resolvePosTransmitApiBaseUrl();
 
 async function parseJson(response) {
   const text = await response.text();
@@ -14,14 +14,14 @@ async function parseJson(response) {
   if (!response.ok) {
     const message =
       (payload && typeof payload === "object" && (payload.error || payload.message)) ||
-      buildBackendHttpErrorMessage(API_BASE, response) ||
+      buildBackendHttpErrorMessage(TRANSMIT_API_BASE, response) ||
       `Request failed with HTTP ${response.status}`;
     throw new Error(message);
   }
   return payload;
 }
 
-function authHeaders(accessToken) {
+function transmitHeaders(accessToken) {
   const sessionContext = resolveWorkspaceSession();
   const headers = {
     "Content-Type": "application/json",
@@ -33,45 +33,69 @@ function authHeaders(accessToken) {
   return headers;
 }
 
-export async function fetchPosPickups(accessToken) {
+/** Completed sale — primary transaction transmit to pharmacy. */
+export async function completePosSale(body, accessToken) {
   const response = await fetchBackend(
-    `${API_BASE}/pos/pickups`,
-    { headers: authHeaders(accessToken) },
-    API_BASE
+    `${TRANSMIT_API_BASE}/pos/complete-sale`,
+    {
+      method: "POST",
+      headers: transmitHeaders(accessToken),
+      body: JSON.stringify(body),
+    },
+    TRANSMIT_API_BASE
   );
-  const payload = await parseJson(response);
-  return payload?.pickups || [];
+  return parseJson(response);
+}
+
+/**
+ * Stock deltas after a sale (SKU qty sold). Pharmacy receives inventory adjustments only.
+ * @param {{ sku: string, quantityDelta: number, tillNumber?: number, invoiceNumber?: string }[]} adjustments
+ */
+export async function transmitInventoryAdjustments(adjustments, accessToken, meta = {}) {
+  if (!Array.isArray(adjustments) || adjustments.length === 0) {
+    return null;
+  }
+  const response = await fetchBackend(
+    `${TRANSMIT_API_BASE}/pos/inventory/adjustments`,
+    {
+      method: "POST",
+      headers: transmitHeaders(accessToken),
+      body: JSON.stringify({
+        adjustments,
+        ...meta,
+      }),
+    },
+    TRANSMIT_API_BASE
+  );
+  return parseJson(response);
 }
 
 export async function lookupPosPickup(barcode, accessToken) {
   const encoded = encodeURIComponent(String(barcode || "").trim());
   const response = await fetchBackend(
-    `${API_BASE}/pos/pickups/lookup?barcode=${encoded}`,
-    { headers: authHeaders(accessToken) },
-    API_BASE
+    `${TRANSMIT_API_BASE}/pos/pickups/lookup?barcode=${encoded}`,
+    { headers: transmitHeaders(accessToken) },
+    TRANSMIT_API_BASE
   );
   const payload = await parseJson(response);
   return payload?.pickup || null;
 }
 
-export async function completePosSale(body, accessToken) {
+export async function fetchPosPickups(accessToken) {
   const response = await fetchBackend(
-    `${API_BASE}/pos/complete-sale`,
-    {
-      method: "POST",
-      headers: authHeaders(accessToken),
-      body: JSON.stringify(body),
-    },
-    API_BASE
+    `${TRANSMIT_API_BASE}/pos/pickups`,
+    { headers: transmitHeaders(accessToken) },
+    TRANSMIT_API_BASE
   );
-  return parseJson(response);
+  const payload = await parseJson(response);
+  return payload?.pickups || [];
 }
 
 export async function fetchPosHealth(accessToken) {
   const response = await fetchBackend(
-    `${API_BASE}/pos/health`,
-    { headers: authHeaders(accessToken) },
-    API_BASE
+    `${TRANSMIT_API_BASE}/pos/health`,
+    { headers: transmitHeaders(accessToken) },
+    TRANSMIT_API_BASE
   );
   return parseJson(response);
 }

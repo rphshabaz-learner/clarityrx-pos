@@ -37,24 +37,29 @@ if (!isProductionBuild) {
 
 loadEnvFile(".env.production");
 
-const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
+const transmitUrl =
+  process.env.REACT_APP_POS_TRANSMIT_URL ||
+  process.env.NEXT_PUBLIC_POS_TRANSMIT_URL ||
+  process.env.REACT_APP_POS_API_URL ||
+  process.env.REACT_APP_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL;
 
-if (!apiBaseUrl) {
+if (!transmitUrl) {
   console.warn(
-    "[clarityrx-pos] Warning: REACT_APP_API_BASE_URL is not set.\n" +
+    "[clarityrx-pos] Warning: REACT_APP_POS_TRANSMIT_URL is not set.\n" +
       "Add it in Vercel or commit .env.production, then redeploy:\n" +
-      "  REACT_APP_API_BASE_URL=https://<your-clarityrx-app>.vercel.app/api\n" +
-      "  REACT_APP_PACKAGING_SOCKET_URL=https://<your-clarityrx-app>.vercel.app"
+      "  REACT_APP_POS_TRANSMIT_URL=https://<your-clarityrx-app>.vercel.app/api\n" +
+      "  REACT_APP_POS_AUTH_URL=https://<your-clarityrx-app>.vercel.app/api"
   );
   process.exit(0);
 }
 
-if (/clarityrx-pos\.vercel\.app/i.test(apiBaseUrl)) {
+if (/clarityrx-pos\.vercel\.app/i.test(transmitUrl)) {
   console.error(
-    `REACT_APP_API_BASE_URL must not point at the POS frontend (${apiBaseUrl}).\n` +
+    `REACT_APP_POS_TRANSMIT_URL must not point at the POS frontend (${transmitUrl}).\n` +
       "Use the main ClarityRx deployment where api/index.js serves Express."
   );
   process.exit(1);
 }
 
-console.log(`[clarityrx-pos] Using API base URL: ${apiBaseUrl}`);
+console.log(`[clarityrx-pos] Using POS transmit API: ${transmitUrl}`);
