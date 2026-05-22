@@ -94,6 +94,8 @@ html, body, #root { height: 100%; background: #f3f6fb; font-family: 'Plus Jakart
 .crx-pos-header__row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; flex-wrap: wrap; }
 .crx-pos-header__row--secondary { align-items: flex-start; border-top: 1px solid #1e293b; padding-top: 10px; padding-bottom: 12px; }
 .crx-pos-header__brand { flex: 1 1 320px; min-width: 0; }
+.crx-pos-header__brand-line { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.crx-pos-header__logo { width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.22); }
 .crx-pos-header__title { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
 .crx-pos-header__identity { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .crx-pos-header__chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #e2e8f0; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 4px 10px; }
@@ -142,6 +144,7 @@ html, body, #root { height: 100%; background: #f3f6fb; font-family: 'Plus Jakart
 .crx-pos-auth__brand { position: absolute; top: 24px; left: 24px; }
 .crx-pos-auth__title { font-size: 22px; font-weight: 800; color: #0f172a; }
 .crx-pos-auth__subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+.auth-login-logo { width: 44px; height: 44px; border-radius: 10px; flex: 0 0 auto; box-shadow: 0 16px 30px rgba(15, 23, 42, 0.16); }
 
 /* Touch-screen monitors: finger-sized targets, tap feedback, no hover-only UI */
 html, .crx-pos-app, .crx-pos-auth { touch-action: manipulation; -webkit-text-size-adjust: 100%; }

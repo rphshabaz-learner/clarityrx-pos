@@ -186,7 +186,10 @@ export default function PosTopHeaderBar({ onNotify }) {
       <header className="crx-pos-header" role="banner">
         <div className="crx-pos-header__row crx-pos-header__row--primary">
           <div className="crx-pos-header__brand">
-            <div className="crx-pos-header__title">ClarityRx POS</div>
+            <div className="crx-pos-header__brand-line">
+              <img className="crx-pos-header__logo" src="/clarity-pos-icon.svg" alt="" aria-hidden="true" />
+              <div className="crx-pos-header__title">Clarity POS</div>
+            </div>
             <div className="crx-pos-header__identity">
               <span className="crx-pos-header__chip">
                 <span className="crx-pos-header__chip-label">Cashier</span>

@@ -8,7 +8,6 @@ import {
   Lock,
   User,
   Loader2,
-  Pill,
   Fingerprint,
   Wifi,
 } from "lucide-react";
@@ -242,12 +241,10 @@ export default function AuthScreen() {
       <div className="min-h-dvh bg-[linear-gradient(130deg,rgba(35,137,167,0.16),transparent_34%),linear-gradient(315deg,rgba(255,255,255,0),rgba(224,233,240,0.9))]">
         <header className="auth-login-header flex flex-col gap-5 px-5 py-5">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-700 to-emerald-400 text-white shadow-lg shadow-cyan-700/20">
-              <Pill className="h-6 w-6" />
-            </div>
+            <img className="auth-login-logo" src="/clarity-pos-icon.svg" alt="" aria-hidden="true" />
             <div className="min-w-0">
               <h1 className="text-2xl font-extrabold leading-tight tracking-normal text-slate-950">
-                ClarityRx POS
+                Clarity POS
               </h1>
               <p className="text-sm text-slate-600">Pickup and front-store checkout</p>
             </div>
