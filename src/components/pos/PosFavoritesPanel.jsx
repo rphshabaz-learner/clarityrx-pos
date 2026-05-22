@@ -36,24 +36,8 @@ export default function PosFavoritesPanel({ tabs, items, onAddItem }) {
             <button
               key={item.id}
               type="button"
+              className="crx-favorite-tile"
               onClick={() => onAddItem(item)}
-              style={{
-                border: "1px solid #e5e7eb",
-                borderRadius: 12,
-                padding: 14,
-                background: "#fff",
-                cursor: "pointer",
-                textAlign: "center",
-                transition: "border-color 0.13s, box-shadow 0.13s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#1447e6";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(20,71,230,0.12)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "#e5e7eb";
-                e.currentTarget.style.boxShadow = "none";
-              }}
             >
               <div style={{ fontSize: 36, lineHeight: 1, marginBottom: 8 }} aria-hidden>
                 {item.emoji || "📦"}
