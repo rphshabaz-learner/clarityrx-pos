@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
+  ArrowRight,
+  Eye,
+  EyeOff,
   ShieldCheck,
   Lock,
   User,
@@ -8,6 +12,7 @@ import {
   ScanLine,
   ClipboardList,
   Fingerprint,
+  Wifi,
 } from "lucide-react";
 import { useAuth } from "../AuthContext";
 import {
@@ -54,19 +59,23 @@ function BackendConfigPanel({ apiBaseUrl, error }) {
     return (
       <button
         type="button"
-        className="text-xs font-semibold text-cyan-700 hover:text-cyan-800"
+        className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100"
         onClick={() => setOpen(true)}
       >
-        Backend connection
+        <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]" />
+        Backend online
       </button>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+    <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-bold text-slate-800">Backend connection</div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+            <Wifi className="h-4 w-4 text-cyan-700" />
+            Backend connection
+          </div>
           <div className="text-xs text-slate-500 mt-1">Current API: {apiBaseUrl}</div>
         </div>
         <button
@@ -81,7 +90,7 @@ function BackendConfigPanel({ apiBaseUrl, error }) {
       <label className="block text-xs font-semibold text-slate-600">
         API base URL
         <input
-          className="mt-1 w-full h-10 px-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-cyan-500"
           value={apiInput}
           onChange={(e) => setApiInput(e.target.value)}
           placeholder="http://localhost:4000/api"
@@ -91,7 +100,7 @@ function BackendConfigPanel({ apiBaseUrl, error }) {
       <label className="block text-xs font-semibold text-slate-600">
         Socket URL
         <input
-          className="mt-1 w-full h-10 px-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-cyan-500"
           value={socketInput}
           onChange={(e) => setSocketInput(e.target.value)}
           placeholder="http://localhost:4000"
@@ -101,14 +110,14 @@ function BackendConfigPanel({ apiBaseUrl, error }) {
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className="h-9 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold"
+          className="h-9 rounded-lg bg-cyan-700 px-3 text-xs font-bold text-white hover:bg-cyan-800"
           onClick={saveAndReload}
         >
           Save and reload
         </button>
         <button
           type="button"
-          className="h-9 px-3 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100"
+          className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-100"
           onClick={() => {
             setApiInput("http://localhost:4000/api");
             setSocketInput("http://localhost:4000");
@@ -119,7 +128,7 @@ function BackendConfigPanel({ apiBaseUrl, error }) {
         {hasRuntimeOverride ? (
           <button
             type="button"
-            className="h-9 px-3 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100"
+            className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-100"
             onClick={clearAndReload}
           >
             Clear override
@@ -149,6 +158,7 @@ export default function AuthScreen() {
   } = useAuth();
 
   const [credentials, setCredentials] = useState({ username: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
   const [mfaBundle, setMfaBundle] = useState(null);
   const [recoveryCodes, setRecoveryCodes] = useState([]);
@@ -162,7 +172,7 @@ export default function AuthScreen() {
     ? "MFA Enrollment"
     : pendingMfa
       ? "MFA Verification"
-      : "Welcome Back";
+      : "Welcome back";
 
   const panelSubtitle = useMemo(() => {
     if (pendingMfaEnrollment) {
@@ -174,7 +184,7 @@ export default function AuthScreen() {
     if (pendingMfa) {
       return "Enter your authenticator code or a recovery code to continue.";
     }
-    return "Sign in to continue to ClarityRx";
+    return "Sign in to open your register.";
   }, [pendingMfa, pendingMfaEnrollment, enforcePrivilegedMfa]);
 
   const helperText = useMemo(() => {
