@@ -6,3 +6,139 @@
 @theme {
   --radius-full: 9999px;
 }
+
+.auth-login-header {
+  align-items: flex-start;
+  padding: 20px;
+}
+
+.auth-login-main {
+  margin-inline: auto;
+  width: min(1180px, calc(100% - 40px));
+}
+
+.auth-login-card {
+  width: min(100%, 456px);
+  padding: 24px !important;
+  justify-self: center;
+}
+
+.auth-login-card input {
+  padding-left: 48px !important;
+  padding-right: 48px !important;
+}
+
+.auth-login-card button[type="submit"] {
+  min-height: 56px;
+}
+
+.auth-login-header > button {
+  padding: 8px 12px !important;
+}
+
+.auth-login-visual > div {
+  padding: 16px !important;
+}
+
+.auth-preview-top > div {
+  padding: 20px !important;
+}
+
+.auth-preview-actions > div {
+  min-height: 80px !important;
+  padding: 12px !important;
+}
+
+.auth-panel-title {
+  font-size: 1.875rem;
+  line-height: 1.12;
+}
+
+.auth-login-status {
+  justify-content: flex-start;
+}
+
+.auth-login-visual {
+  justify-items: center;
+}
+
+.auth-hero-title {
+  font-size: 2.375rem;
+}
+
+.auth-hero-copy {
+  font-size: 1rem;
+}
+
+.auth-preview-top {
+  grid-template-columns: 1fr;
+}
+
+.auth-preview-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .auth-login-header {
+    padding-inline: 2rem;
+  }
+
+  .auth-login-card {
+    padding: 2rem;
+  }
+
+  .auth-panel-title {
+    font-size: 2.25rem;
+  }
+
+  .auth-login-status {
+    flex-direction: row;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .auth-hero-title {
+    font-size: 3rem;
+  }
+
+  .auth-hero-copy {
+    font-size: 1.125rem;
+  }
+
+  .auth-preview-top {
+    grid-template-columns: 1fr 156px;
+  }
+
+  .auth-preview-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .auth-login-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: 3.5rem;
+  }
+
+  .auth-login-main {
+    grid-template-columns: minmax(320px, 456px) minmax(420px, 1fr);
+    gap: 5rem;
+    padding-top: 2rem;
+    padding-bottom: 4rem;
+  }
+
+  .auth-login-card {
+    justify-self: end;
+  }
+
+  .auth-login-visual {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .auth-hero-title {
+    font-size: 3.75rem;
+  }
+}
