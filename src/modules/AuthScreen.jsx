@@ -240,84 +240,48 @@ export default function AuthScreen() {
       : passkeyCapability?.statusLabel || "Checking biometric availability…";
 
   return (
-    <div className="min-h-dvh w-full bg-slate-100 flex flex-col lg:flex-row">
-      {/* LEFT PANEL */}
-      <div className="hidden lg:flex lg:w-1/2 lg:min-h-dvh bg-gradient-to-br from-cyan-700 to-teal-800 text-white p-14 flex-col justify-between relative overflow-hidden shrink-0">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-white blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-72 h-72 rounded-full bg-white blur-3xl" />
-        </div>
-
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center">
-              <Pill className="w-7 h-7" />
+    <div className="min-h-dvh bg-[#eef4f7] text-slate-950">
+      <div className="min-h-dvh bg-[linear-gradient(130deg,rgba(35,137,167,0.16),transparent_34%),linear-gradient(315deg,rgba(255,255,255,0),rgba(224,233,240,0.9))]">
+        <header className="auth-login-header flex flex-col gap-5 px-5 py-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-700 to-emerald-400 text-white shadow-lg shadow-cyan-700/20">
+              <Pill className="h-6 w-6" />
             </div>
-
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight">ClarityRx</h1>
-              <p className="text-cyan-100">Modern Pharmacy Workflow Platform</p>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-extrabold leading-tight tracking-normal text-slate-950">
+                ClarityRx POS
+              </h1>
+              <p className="text-sm text-slate-600">Pickup and front-store checkout</p>
             </div>
           </div>
+          {!pendingMfa && !pendingMfaEnrollment ? (
+            <BackendConfigPanel apiBaseUrl={apiBaseUrl} error={error} />
+          ) : null}
+        </header>
 
-          <div className="space-y-6 mt-16">
-            <div className="flex gap-4">
-              <ScanLine className="w-6 h-6 mt-1 text-cyan-200 shrink-0" />
-              <div>
-                <h3 className="font-semibold text-lg">OCR Prescription Intake</h3>
-                <p className="text-cyan-100 text-sm">
-                  Scan, upload, and auto-fill patient workflows instantly.
-                </p>
+        <main className="auth-login-main mx-auto grid grid-cols-1 items-center gap-9 pb-12 pt-2">
+          <section
+            className="auth-login-card order-1 rounded-lg border border-slate-200/90 bg-white/95 p-6 shadow-2xl shadow-slate-700/10 backdrop-blur"
+            aria-labelledby="auth-title"
+          >
+            <div className="mb-7">
+              <div className="mb-3 flex items-center gap-2 text-xs font-extrabold uppercase tracking-normal text-cyan-800">
+                <ShieldCheck className="h-4 w-4" />
+                Staff access
               </div>
-            </div>
-
-            <div className="flex gap-4">
-              <ClipboardList className="w-6 h-6 mt-1 text-cyan-200 shrink-0" />
-              <div>
-                <h3 className="font-semibold text-lg">Queue-Based Workflow</h3>
-                <p className="text-cyan-100 text-sm">
-                  Built for pharmacists, assistants, and tech delegation.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <ShieldCheck className="w-6 h-6 mt-1 text-cyan-200 shrink-0" />
-              <div>
-                <h3 className="font-semibold text-lg">Secure Session Isolation</h3>
-                <p className="text-cyan-100 text-sm">
-                  Multi-session secure pharmacy environment support.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative z-10 text-sm text-cyan-100 border-t border-white/20 pt-6">
-          HIPAA / PIPEDA Ready • Role-Based Access • Audit Logging
-        </div>
-      </div>
-
-      {/* RIGHT PANEL */}
-      <div className="flex-1 flex min-h-0 items-center justify-center p-6 py-10 overflow-y-auto lg:min-h-dvh">
-        <div className="w-full max-w-md my-auto">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-8 w-full">
-            <div className="mb-8 text-center">
-              <div className="flex items-center justify-center gap-2 mb-4 lg:hidden">
-                <div className="w-10 h-10 rounded-xl bg-cyan-600 flex items-center justify-center">
-                  <Pill className="w-5 h-5 text-white" />
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 id="auth-title" className="auth-panel-title font-extrabold tracking-normal text-slate-950">
+                    {panelTitle}
+                  </h2>
+                  <p className="mt-2 text-base text-slate-600">{panelSubtitle}</p>
                 </div>
-                <span className="text-xl font-bold text-slate-900">ClarityRx</span>
+                {isDev ? (
+                  <span className="rounded-md border border-amber-200 bg-amber-100 px-2 py-1 text-xs font-bold text-amber-700">
+                    DEV
+                  </span>
+                ) : null}
               </div>
-
-              <h2 className="text-3xl font-bold text-slate-900">{panelTitle}</h2>
-              <p className="text-slate-500 mt-2">{panelSubtitle}</p>
-
-              {isDev ? (
-                <span className="inline-block mt-3 px-2 py-1 rounded-md bg-amber-100 text-amber-700 text-xs font-bold border border-amber-200">
-                  DEV
-                </span>
-              ) : null}
             </div>
 
             {!pendingMfa && !pendingMfaEnrollment ? (
@@ -337,17 +301,17 @@ export default function AuthScreen() {
                 }}
               >
                 <div>
-                  <label className="text-sm font-medium text-slate-700" htmlFor="auth-username">
+                  <label className="text-sm font-bold text-slate-700" htmlFor="auth-username">
                     Username
                   </label>
-                  <div className="mt-2 relative">
-                    <User className="w-5 h-5 absolute left-3 top-3.5 text-slate-400" />
+                  <div className="relative mt-2">
+                    <User className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <input
                       id="auth-username"
                       type="text"
                       placeholder="Enter username"
                       autoComplete="username"
-                      className="w-full h-12 pl-10 pr-4 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      className="h-13 min-h-13 w-full rounded-lg border border-slate-300 bg-slate-50/70 px-4 py-3 pl-12 text-slate-950 outline-none transition focus:border-cyan-700 focus:bg-white focus:ring-4 focus:ring-cyan-700/15"
                       value={credentials.username}
                       onChange={(e) =>
                         setCredentials((prev) => ({ ...prev, username: e.target.value }))
@@ -357,40 +321,51 @@ export default function AuthScreen() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-slate-700" htmlFor="auth-password">
+                  <label className="text-sm font-bold text-slate-700" htmlFor="auth-password">
                     Password
                   </label>
-                  <div className="mt-2 relative">
-                    <Lock className="w-5 h-5 absolute left-3 top-3.5 text-slate-400" />
+                  <div className="relative mt-2">
+                    <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <input
                       id="auth-password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="Enter password"
                       autoComplete="current-password"
-                      className="w-full h-12 pl-10 pr-4 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      className="h-13 min-h-13 w-full rounded-lg border border-slate-300 bg-slate-50/70 px-12 py-3 pl-12 text-slate-950 outline-none transition focus:border-cyan-700 focus:bg-white focus:ring-4 focus:ring-cyan-700/15"
                       value={credentials.password}
                       onChange={(e) =>
                         setCredentials((prev) => ({ ...prev, password: e.target.value }))
                       }
                     />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-700"
+                      onClick={() => setShowPassword((value) => !value)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
                   </div>
                 </div>
 
                 <ErrorBanner message={error} />
-                <BackendConfigPanel apiBaseUrl={apiBaseUrl} error={error} />
 
                 <button
                   type="submit"
                   disabled={busy}
-                  className="w-full h-12 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-semibold transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-cyan-600 to-cyan-800 font-extrabold text-white shadow-lg shadow-cyan-700/20 transition hover:from-cyan-700 hover:to-cyan-900 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {busy ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Signing In...
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Signing in...
                     </>
                   ) : (
-                    "Sign In"
+                    <>
+                      Sign in
+                      <ArrowRight className="h-5 w-5" />
+                    </>
                   )}
                 </button>
               </form>
@@ -423,11 +398,11 @@ export default function AuthScreen() {
                 <button
                   type="submit"
                   disabled={busy || !mfaBundle?.secret || !mfaCode.trim()}
-                  className="w-full h-12 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-semibold transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-cyan-700 font-semibold text-white transition hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {busy ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       Enabling MFA...
                     </>
                   ) : (
@@ -435,7 +410,7 @@ export default function AuthScreen() {
                   )}
                 </button>
                 {helperText ? (
-                  <p className="text-xs text-slate-500 leading-relaxed">{helperText}</p>
+                  <p className="text-xs leading-relaxed text-slate-500">{helperText}</p>
                 ) : null}
               </form>
             ) : (
@@ -455,12 +430,12 @@ export default function AuthScreen() {
                 }}
               >
                 <div>
-                  <label className="text-sm font-medium text-slate-700" htmlFor="auth-mfa-code">
+                  <label className="text-sm font-bold text-slate-700" htmlFor="auth-mfa-code">
                     Google Authenticator or recovery code
                   </label>
                   <input
                     id="auth-mfa-code"
-                    className="mt-2 w-full h-12 px-4 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-300 px-4 outline-none focus:border-cyan-700 focus:ring-4 focus:ring-cyan-700/15"
                     autoFocus
                     inputMode="numeric"
                     autoComplete="one-time-code"
@@ -473,11 +448,11 @@ export default function AuthScreen() {
                 <button
                   type="submit"
                   disabled={busy}
-                  className="w-full h-12 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-semibold transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-cyan-700 font-semibold text-white transition hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {busy ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       Verifying...
                     </>
                   ) : (
@@ -485,21 +460,21 @@ export default function AuthScreen() {
                   )}
                 </button>
                 {helperText ? (
-                  <p className="text-xs text-slate-500 leading-relaxed">{helperText}</p>
+                  <p className="text-xs leading-relaxed text-slate-500">{helperText}</p>
                 ) : null}
               </form>
             )}
 
             {showPasskeySection ? (
               <div className="mt-6 space-y-3">
-                <div className="flex items-center text-center text-slate-400 text-xs uppercase tracking-wide">
+                <div className="flex items-center text-center text-xs font-extrabold uppercase tracking-normal text-slate-400">
                   <div className="flex-1 border-b border-slate-200" />
-                  <span className="px-2">Or continue with</span>
+                  <span className="px-3">Or continue with</span>
                   <div className="flex-1 border-b border-slate-200" />
                 </div>
 
                 {passkeyCapability && !passkeyCapability.canUsePasskeys ? (
-                  <p className="text-xs text-amber-700 font-medium">{passkeyCapability.statusLabel}</p>
+                  <p className="text-xs font-medium text-amber-700">{passkeyCapability.statusLabel}</p>
                 ) : null}
 
                 <button
@@ -516,38 +491,77 @@ export default function AuthScreen() {
                       setBusy(false);
                     }
                   }}
-                  className="w-full h-12 rounded-xl text-slate-900 font-semibold flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  className="flex h-13 min-h-13 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white font-bold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Fingerprint className="w-4 h-4" />
-                  {busy ? "Waiting for device…" : "Sign in with Passkey"}
+                  <Fingerprint className="h-4 w-4" />
+                  {busy ? "Waiting for device..." : "Sign in with passkey"}
                 </button>
-                <p className="text-center text-xs text-slate-400">{biometricLabel}</p>
+                <div className="auth-login-status flex flex-col items-start gap-2 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4" />
+                    Secure encrypted session
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Activity className="h-4 w-4" />
+                    {biometricLabel}
+                  </span>
+                </div>
               </div>
             ) : null}
 
             {showPasskeySection && isDev ? (
-              <div className="mt-6 space-y-3">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm">
-                  <div className="font-semibold text-slate-700 mb-1">Demo Access</div>
-                  <div className="text-slate-500 space-y-1">
-                    <div>Admin: admin / Admin123!</div>
-                    <div>Pharmacist: pharmacist / Pharm123!</div>
-                  </div>
+              <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+                <div className="mb-1 font-semibold text-slate-700">Demo access</div>
+                <div className="space-y-1 text-slate-500">
+                  <div>Admin: admin / Admin123!</div>
+                  <div>Pharmacist: pharmacist / Pharm123!</div>
                 </div>
-
-                <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
-                  <ShieldCheck className="w-4 h-4" />
-                  Secure encrypted session
-                </div>
-              </div>
-            ) : showPasskeySection ? (
-              <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400">
-                <ShieldCheck className="w-4 h-4" />
-                Secure encrypted session
               </div>
             ) : null}
-          </div>
-        </div>
+          </section>
+
+          <section className="auth-login-visual order-2 grid content-center text-center" aria-label="Point of sale preview">
+            <h2 className="auth-hero-title max-w-xl font-extrabold leading-none tracking-normal text-slate-950">
+              Ready for the next pickup.
+            </h2>
+            <p className="auth-hero-copy mt-6 max-w-xl leading-8 text-slate-600">
+              Fast sign-in for pharmacy staff, clear connection state, and controls that stay readable on a busy counter.
+            </p>
+
+            <div className="mt-8 grid w-full max-w-xl gap-4 rounded-lg border border-slate-200/90 bg-white/60 p-4 text-left shadow-2xl shadow-slate-700/10">
+              <div className="auth-preview-top grid gap-4">
+                <div className="rounded-lg border border-slate-200 bg-white p-5">
+                  <strong className="block text-base text-slate-900">Register 02</strong>
+                  <div className="mt-4 h-2.5 w-full rounded-full bg-slate-200" />
+                  <div className="mt-3 h-2.5 w-3/4 rounded-full bg-slate-200" />
+                  <div className="mt-3 h-2.5 w-1/2 rounded-full bg-slate-200" />
+                </div>
+                <div className="grid content-center rounded-lg bg-slate-950 p-5 text-white">
+                  <span className="text-xs font-bold text-slate-300">Today</span>
+                  <strong className="mt-1 text-3xl">38</strong>
+                  <span className="mt-1 text-xs font-bold text-slate-300">completed pickups</span>
+                </div>
+              </div>
+
+              <div className="auth-preview-actions grid grid-cols-2 gap-3">
+                <div className="grid min-h-20 content-end rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-extrabold text-cyan-900">
+                  <ScanLine className="mb-2 h-5 w-5" />
+                  Pickup
+                </div>
+                <div className="grid min-h-20 content-end rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-extrabold text-slate-700">
+                  <ClipboardList className="mb-2 h-5 w-5" />
+                  Scan Rx
+                </div>
+                <div className="grid min-h-20 content-end rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-extrabold text-slate-700">
+                  Front store
+                </div>
+                <div className="grid min-h-20 content-end rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-extrabold text-slate-700">
+                  Tender
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
       </div>
     </div>
   );
