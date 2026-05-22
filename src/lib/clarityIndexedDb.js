@@ -12,7 +12,7 @@
 import { scopedIndexedDbName } from "../session/scopedStorage";
 
 const BASE_DB_NAME = "clarityrx-local-v1";
-const DB_VERSION = 11;
+const DB_VERSION = 13;
 const STORE_KV = "kv";
 const STORE_ACTIVITIES = "activities";
 const STORE_DPD_PRODUCTS = "dpd_products";
@@ -27,6 +27,8 @@ const STORE_DAMAGED_GOODS = "damaged_goods";
 const STORE_FOLLOWUPS = "follow_ups";
 const STORE_POS_PROMOTIONS = "pos_promotions";
 const STORE_POS_CUSTOMERS = "pos_customers";
+const STORE_POS_FRONT_STORE_PRODUCTS = "pos_front_store_products";
+const STORE_POS_COMPLETED_SALES = "pos_completed_sales";
 
 function txDone(tx) {
   return new Promise((resolve, reject) => {
@@ -141,6 +143,22 @@ export function openClarityDb() {
         store.createIndex("type", "type", { unique: false });
         store.createIndex("status", "status", { unique: false });
         store.createIndex("updatedAt", "updatedAt", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_POS_FRONT_STORE_PRODUCTS)) {
+        const store = db.createObjectStore(STORE_POS_FRONT_STORE_PRODUCTS, { keyPath: "id" });
+        store.createIndex("sku", "sku", { unique: false });
+        store.createIndex("upc", "upc", { unique: false });
+        store.createIndex("departmentId", "departmentId", { unique: false });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("updatedAt", "updatedAt", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_POS_COMPLETED_SALES)) {
+        const store = db.createObjectStore(STORE_POS_COMPLETED_SALES, { keyPath: "id" });
+        store.createIndex("chargedAt", "chargedAt", { unique: false });
+        store.createIndex("businessDate", "businessDate", { unique: false });
+        store.createIndex("tillNumber", "tillNumber", { unique: false });
+        store.createIndex("cashierId", "cashierId", { unique: false });
+        store.createIndex("invoiceNumber", "invoiceNumber", { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -816,4 +834,67 @@ export async function deletePosCustomer(id) {
   const tx = db.transaction([STORE_POS_CUSTOMERS], "readwrite");
   tx.objectStore(STORE_POS_CUSTOMERS).delete(id);
   await txDone(tx);
+}
+
+export async function listFrontStoreProducts() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_FRONT_STORE_PRODUCTS], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_POS_FRONT_STORE_PRODUCTS).getAll());
+  await txDone(tx);
+  return all.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+}
+
+export async function saveFrontStoreProduct(product) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_FRONT_STORE_PRODUCTS], "readwrite");
+  tx.objectStore(STORE_POS_FRONT_STORE_PRODUCTS).put(product);
+  await txDone(tx);
+}
+
+export async function deleteFrontStoreProduct(id) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_FRONT_STORE_PRODUCTS], "readwrite");
+  tx.objectStore(STORE_POS_FRONT_STORE_PRODUCTS).delete(id);
+  await txDone(tx);
+}
+
+export async function getFrontStoreProductBySku(sku) {
+  const normalized = String(sku || "").trim().toLowerCase();
+  if (!normalized) return null;
+  const rows = await listFrontStoreProducts();
+  return rows.find((row) => String(row.sku || "").trim().toLowerCase() === normalized) || null;
+}
+
+export async function appendCompletedSale(sale) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_COMPLETED_SALES], "readwrite");
+  tx.objectStore(STORE_POS_COMPLETED_SALES).put(sale);
+  await txDone(tx);
+  await completedSalesTrimIfNeeded();
+}
+
+async function completedSalesTrimIfNeeded() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_COMPLETED_SALES], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_POS_COMPLETED_SALES).getAll());
+  await txDone(tx);
+  const MAX = 8000;
+  const KEEP = 6000;
+  if (all.length <= MAX) return;
+  all.sort((a, b) => (a.chargedAt || 0) - (b.chargedAt || 0));
+  const drop = all.slice(0, all.length - KEEP);
+  const txw = db.transaction([STORE_POS_COMPLETED_SALES], "readwrite");
+  const st = txw.objectStore(STORE_POS_COMPLETED_SALES);
+  drop.forEach((row) => st.delete(row.id));
+  await txDone(txw);
+}
+
+/** Newest first */
+export async function listCompletedSales(limit = 5000) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_COMPLETED_SALES], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_POS_COMPLETED_SALES).getAll());
+  await txDone(tx);
+  all.sort((a, b) => (b.chargedAt || 0) - (a.chargedAt || 0));
+  return limit > 0 ? all.slice(0, limit) : all;
 }

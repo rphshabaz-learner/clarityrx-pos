@@ -110,6 +110,12 @@ const PERMISSIONS = {
     "assistant",
     "cashier",
   ],
+  "pos.reports": [
+    "admin",
+    "pharmacist",
+    "relief_pharmacist",
+    "store_manager",
+  ],
 };
 
 export const SCREEN_IDS = ["pos"];

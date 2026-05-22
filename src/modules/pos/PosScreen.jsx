@@ -8,6 +8,7 @@ import PosManagePanel from "../../components/pos/PosManagePanel";
 import PosPromotionsPanel from "../../components/pos/promotions/PosPromotionsPanel";
 import PosCustomersPanel from "../../components/pos/customers/PosCustomersPanel";
 import PosPurchasingPanel from "../../components/pos/purchasing/PosPurchasingPanel";
+import PosReportsPanel from "../../components/pos/reports/PosReportsPanel";
 import { customerDisplayName } from "../../lib/customers/customerTypes";
 import PosSalesRegisterPanel from "../../components/pos/sales/PosSalesRegisterPanel";
 import {
@@ -28,6 +29,9 @@ import { usePosTill } from "../../context/PosTillContext";
 import { isCardPayMethod } from "../../lib/posPayments";
 import { clearSuspendedSale, loadSuspendedSale, saveSuspendedSale } from "../../lib/posSuspendedSale";
 import { isSecurelinkEnabled, resolveSecurelinkTerminalId } from "../../lib/securelinkConfig";
+import { appendCompletedSale } from "../../lib/clarityIndexedDb";
+import { getActiveShift } from "../../lib/posShift";
+import { buildCompletedSaleSnapshot } from "../../lib/reporting/saleSnapshot";
 import { completePosSale, lookupPosPickup, transmitInventoryAdjustments } from "../../services/posApi";
 import { POS_DEFAULT_CART, POS_FRONT_STORE_ITEMS } from "./posCatalog";
 
@@ -36,6 +40,7 @@ const POS_WORKSPACE_TABS = [
   { id: "customers", label: "Customers" },
   { id: "purchasing", label: "Purchasing" },
   { id: "promotions", label: "Promotions" },
+  { id: "reports", label: "Reporting & Analytics" },
   { id: "favorites", label: "Favorites" },
   { id: "manage", label: "Manage" },
 ];
@@ -85,7 +90,7 @@ function PosToast({ message, type = "info", duration = 3000, onClose }) {
 }
 
 export default function PosScreen() {
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const { hasPermission } = useRoleAccess();
   const { logActivity, runAutosave } = usePosWorkspaceData();
   const {
@@ -100,6 +105,7 @@ export default function PosScreen() {
   const canPurchasing = hasPermission("pos.purchasing");
   const canPromotions = hasPermission("pos.promotions");
   const canCustomers = hasPermission("pos.customers");
+  const canReports = hasPermission("pos.reports");
 
   const [workspaceTab, setWorkspaceTab] = useState("till");
   const [activeCustomer, setActiveCustomer] = useState(null);
@@ -673,6 +679,32 @@ export default function PosScreen() {
         pickupId: selectedPickup?.id || null,
         invoiceNumber: result.invoiceNumber,
       });
+      try {
+        const saleSnapshot = buildCompletedSaleSnapshot({
+          cart,
+          result,
+          totals: {
+            subtotal: otcSubtotal,
+            discount,
+            couponDiscount,
+            tax,
+            total,
+          },
+          payMethod: splitEnabled ? "Split" : payMethod,
+          splitPayments: splitEnabled ? splitPayments : null,
+          tillNumber: selectedTillNumber,
+          shift: getActiveShift(),
+          user,
+          rxCopay,
+          demographicLabel,
+          tenderedAmount: Number.isFinite(numericTenderedAmount) ? numericTenderedAmount : null,
+          changeDue,
+          taxExempt,
+        });
+        await appendCompletedSale(saleSnapshot);
+      } catch (reportError) {
+        console.warn("completed sale snapshot", reportError?.message || reportError);
+      }
       setLastCompletedSale({
         invoiceNumber: result.invoiceNumber,
         total: Number(total.toFixed(2)),
@@ -834,6 +866,7 @@ export default function PosScreen() {
           if (tab.id === "purchasing" && !canPurchasing) return false;
           if (tab.id === "promotions" && !canPromotions) return false;
           if (tab.id === "customers" && !canCustomers) return false;
+          if (tab.id === "reports" && !canReports) return false;
           return true;
         }).map((tab) => (
           <button
@@ -891,6 +924,10 @@ export default function PosScreen() {
           onNotify={(message, type) => setToast({ message, type: type || "info" })}
           logActivity={logActivity}
         />
+      ) : null}
+
+      {workspaceTab === "reports" ? (
+        <PosReportsPanel onNotify={(message, type) => setToast({ message, type: type || "info" })} />
       ) : null}
 
       {workspaceTab === "till" ? (
