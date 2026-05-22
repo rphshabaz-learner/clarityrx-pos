@@ -41,6 +41,36 @@ html, body, #root { height: 100%; background: #f3f6fb; font-family: 'Plus Jakart
 .crx-pos-auth__brand { position: absolute; top: 24px; left: 24px; }
 .crx-pos-auth__title { font-size: 22px; font-weight: 800; color: #0f172a; }
 .crx-pos-auth__subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+/* Touch-screen monitors: finger-sized targets, tap feedback, no hover-only UI */
+html, .crx-pos-app, .crx-pos-auth { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+.crx-pos-app, .crx-pos-auth { -webkit-tap-highlight-color: rgba(20, 71, 230, 0.12); }
+.crx-tab:active:not(.active) { color: #374151; }
+.btn-primary:active:not(:disabled) { background: #1035c9; }
+.btn-secondary:active:not(:disabled) { background: #f9fafb; border-color: #d1d5db; }
+.pay-opt:active { border-color: #1447e6; color: #1447e6; }
+.crx-favorite-tile { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; background: #fff; cursor: pointer; text-align: center; transition: border-color 0.13s, box-shadow 0.13s; touch-action: manipulation; min-height: 120px; font-family: inherit; }
+.crx-favorite-tile:hover, .crx-favorite-tile:active { border-color: #1447e6; box-shadow: 0 4px 12px rgba(20, 71, 230, 0.12); }
+.crx-pickup-btn { text-align: left; cursor: pointer; border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 12px; padding: 14px; width: 100%; touch-action: manipulation; font-family: inherit; }
+.crx-pickup-btn.selected { border: 2px solid #16a34a; background: #ecfdf5; }
+.crx-pickup-btn:active { filter: brightness(0.97); }
+.crx-demographic-chip { border: 1px solid #e5e7eb; background: #fff; color: #374151; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; touch-action: manipulation; }
+.crx-demographic-chip.active { border: 2px solid #1447e6; background: #eff6ff; color: #1447e6; }
+.crx-demographic-chip:active { border-color: #1447e6; background: #eff6ff; }
+.crx-qty-btn { min-width: 44px; min-height: 44px; padding: 0 !important; font-size: 18px; font-weight: 700; }
+.crx-icon-btn { background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 20px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; touch-action: manipulation; font-family: inherit; }
+.crx-icon-btn:active { background: #f3f4f6; color: #6b7280; }
+.crx-charge-btn { width: 100%; justify-content: center; padding: 13px; font-size: 15px; border-radius: 10px; min-height: 48px; }
+@media (pointer: coarse) {
+  .btn-primary, .btn-secondary { min-height: 44px; padding: 11px 18px; font-size: 14px; }
+  .crx-tab { padding: 13px 18px; font-size: 14px; min-height: 44px; }
+  .pay-opt { min-height: 52px; padding: 14px; font-size: 13px; }
+  .crx-input, .crx-select { min-height: 44px; font-size: 15px; padding: 11px 14px; }
+  .crx-pos-app input[type="checkbox"], .crx-pos-auth input[type="checkbox"] { width: 22px; height: 22px; }
+  .crx-demographic-chip { padding: 10px 16px; font-size: 13px; min-height: 44px; }
+  .crx-pickup-btn { padding: 16px; min-height: 72px; }
+  .crx-charge-btn { min-height: 56px; font-size: 16px; }
+}
 `}</style>
   );
 }
