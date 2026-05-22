@@ -11,6 +11,7 @@ import {
   loadPosFavoritesConfig,
   savePosDemographicConfig,
   savePosFavoritesConfig,
+  serviceItemToCartLine,
 } from "../../lib/posFavorites";
 import { completePosSale, lookupPosPickup } from "../../services/posApi";
 import { PickupQueue } from "./PickupQueue";
@@ -21,6 +22,16 @@ const POS_WORKSPACE_TABS = [
   { id: "favorites", label: "Favorites" },
   { id: "manage", label: "Manage" },
 ];
+
+const QUICK_SERVICE_ITEMS = [
+  { sku: "SVC-BAG", name: "Reusable bag", price: 0.25 },
+  { sku: "SVC-BOTTLE-RETURN", name: "Bottle deposit return", price: -0.1 },
+  { sku: "SVC-DELIVERY", name: "Local delivery", price: 6.99 },
+];
+
+function clampMoney(value) {
+  return Math.max(0, Number(value) || 0);
+}
 
 function PosToast({ message, type = "info", duration = 3000, onClose }) {
   useEffect(() => {
@@ -74,6 +85,11 @@ export default function PosScreen() {
   const [payMethod, setPayMethod] = useState("Credit Card");
   const [search, setSearch] = useState("");
   const [bagScan, setBagScan] = useState("");
+  const [saleNote, setSaleNote] = useState("");
+  const [taxExempt, setTaxExempt] = useState(false);
+  const [discountType, setDiscountType] = useState(() => loadPosDemographicConfig().defaultDiscountType || "none");
+  const [discountValue, setDiscountValue] = useState(() => loadPosDemographicConfig().defaultDiscountValue || 0);
+  const [tenderedAmount, setTenderedAmount] = useState("");
   const [toast, setToast] = useState(null);
   const [charging, setCharging] = useState(false);
   const lastAutoAddIdentifier = useRef("");
@@ -126,6 +142,13 @@ export default function PosScreen() {
     });
     setToast({ message: `${item.name} added to cart`, type: "success" });
   }, []);
+
+  const addServiceItem = useCallback(
+    (item) => {
+      addToCart(serviceItemToCartLine(item));
+    },
+    [addToCart]
+  );
 
   const addFavoriteToCart = useCallback(
     (favoriteItem) => {
@@ -192,9 +215,40 @@ export default function PosScreen() {
     setCart((prev) => prev.filter((row) => row.sku !== sku));
   }, []);
 
+  const updateCartQty = useCallback((sku, nextQty) => {
+    setCart((prev) =>
+      prev
+        .map((row) => (row.sku === sku ? { ...row, qty: Math.max(0, Number(nextQty) || 0) } : row))
+        .filter((row) => row.qty > 0)
+    );
+  }, []);
+
+  const clearCart = useCallback(() => {
+    setCart([]);
+    setSelectedPickup(null);
+    setSearch("");
+    setBagScan("");
+    setSaleNote("");
+    setTenderedAmount("");
+    setToast({ message: "Till cleared.", type: "info" });
+  }, []);
+
   const otcSubtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const tax = Math.max(0, otcSubtotal) * 0.05;
-  const total = otcSubtotal + tax + rxCopay;
+  const discountBase = Math.max(0, otcSubtotal);
+  const discount =
+    discountType === "percent"
+      ? Math.min(discountBase, discountBase * (clampMoney(discountValue) / 100))
+      : discountType === "amount"
+        ? Math.min(discountBase, clampMoney(discountValue))
+        : 0;
+  const taxableSubtotal = Math.max(0, otcSubtotal - discount);
+  const taxRate = Number(demographicConfig.taxRate) || 0;
+  const tax = taxExempt ? 0 : taxableSubtotal * taxRate;
+  const total = taxableSubtotal + tax + rxCopay;
+  const numericTenderedAmount = Number(tenderedAmount);
+  const changeDue = payMethod === "Cash" && Number.isFinite(numericTenderedAmount)
+    ? Math.max(0, numericTenderedAmount - total)
+    : 0;
 
   const persistDemographics = useCallback((next) => {
     setDemographicConfig(next);
@@ -218,6 +272,15 @@ export default function PosScreen() {
           rxCopay,
           demographic: demographicLabel,
           printMerchantCopy: demographicConfig.printMerchantCopy,
+          saleNote: saleNote.trim(),
+          discount: {
+            type: discountType,
+            value: clampMoney(discountValue),
+            amount: Number(discount.toFixed(2)),
+          },
+          taxExempt,
+          tenderedAmount: Number.isFinite(numericTenderedAmount) ? numericTenderedAmount : null,
+          changeDue: Number(changeDue.toFixed(2)),
         },
         accessToken
       );
@@ -233,6 +296,9 @@ export default function PosScreen() {
       });
       logActivity("pos", "POS charge completed", {
         total: Number(total.toFixed(2)),
+        subtotal: Number(otcSubtotal.toFixed(2)),
+        discount: Number(discount.toFixed(2)),
+        tax: Number(tax.toFixed(2)),
         payMethod,
         demographic: demographicLabel,
         lineItems: cart.length,
@@ -242,6 +308,8 @@ export default function PosScreen() {
       runAutosave();
       setCart([]);
       setSearch("");
+      setSaleNote("");
+      setTenderedAmount("");
       setSelectedPickup(null);
       setSelectedDemographicId(demographicConfig.defaultId);
       reload();
@@ -275,6 +343,8 @@ export default function PosScreen() {
 
   const handleSaveDemographics = (next) => {
     persistDemographics(next);
+    setDiscountType(next.defaultDiscountType || "none");
+    setDiscountValue(next.defaultDiscountValue || 0);
     setToast({ message: "Till options saved.", type: "success" });
   };
 
@@ -283,7 +353,7 @@ export default function PosScreen() {
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Point of Sale</div>
         <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-          Finestra-style till: favorites tabs, default customer, Rx bag scan, and Kroll pickup queue.
+          Finestra-style till: favorites tabs, service shortcuts, customer defaults, discounts, and Kroll pickup queue.
         </div>
       </div>
 
@@ -364,6 +434,21 @@ export default function PosScreen() {
               <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
                 Customer: <strong>{demographicLabel}</strong>
               </div>
+              {demographicConfig.promptForBag ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                  {QUICK_SERVICE_ITEMS.map((item) => (
+                    <button
+                      key={item.sku}
+                      type="button"
+                      className="btn-secondary"
+                      style={{ padding: "6px 10px", fontSize: 12 }}
+                      onClick={() => addServiceItem(item)}
+                    >
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div className="crx-card">
@@ -378,12 +463,21 @@ export default function PosScreen() {
                 >
                   Favorites
                 </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ padding: "4px 10px", fontSize: 11 }}
+                  onClick={clearCart}
+                  disabled={cart.length === 0 && !selectedPickup}
+                >
+                  Clear
+                </button>
               </div>
               <div style={{ padding: "0 18px" }}>
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 80px 80px 80px 30px",
+                    gridTemplateColumns: "1fr 110px 80px 80px 30px",
                     gap: 8,
                     padding: "8px 0",
                     borderBottom: "1px solid #f3f4f6",
@@ -411,7 +505,7 @@ export default function PosScreen() {
                       className="pos-item"
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "1fr 80px 80px 80px 30px",
+                        gridTemplateColumns: "1fr 110px 80px 80px 30px",
                         gap: 8,
                         alignItems: "center",
                         borderBottom: "1px solid #f3f4f6",
@@ -422,7 +516,35 @@ export default function PosScreen() {
                         <div style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{item.name}</div>
                         <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{item.category}</div>
                       </div>
-                      <div style={{ fontSize: 13, color: "#6b7280" }}>{item.qty}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "28px 42px 28px", gap: 4, alignItems: "center" }}>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ minHeight: 28, padding: 0 }}
+                          onClick={() => updateCartQty(item.sku, item.qty - 1)}
+                          title="Decrease quantity"
+                        >
+                          -
+                        </button>
+                        <input
+                          className="crx-input"
+                          type="number"
+                          min="0"
+                          value={item.qty}
+                          onChange={(e) => updateCartQty(item.sku, e.target.value)}
+                          style={{ height: 30, padding: "4px 6px", textAlign: "center" }}
+                          title="Quantity"
+                        />
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ minHeight: 28, padding: 0 }}
+                          onClick={() => updateCartQty(item.sku, item.qty + 1)}
+                          title="Increase quantity"
+                        >
+                          +
+                        </button>
+                      </div>
                       <div style={{ fontSize: 13, color: "#6b7280" }}>${item.price.toFixed(2)}</div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
                         ${(item.price * item.qty).toFixed(2)}
@@ -530,6 +652,89 @@ export default function PosScreen() {
                   </button>
                 ))}
               </div>
+              {payMethod === "Cash" ? (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: 8, textTransform: "uppercase" }}>
+                    Cash tendered
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                    {(demographicConfig.quickTenderAmounts || [10, 20, 50, 100]).map((amount) => (
+                      <button
+                        key={amount}
+                        type="button"
+                        className="btn-secondary"
+                        style={{ padding: "5px 10px", fontSize: 12, minHeight: 30 }}
+                        onClick={() => setTenderedAmount(String(amount))}
+                      >
+                        ${Number(amount).toFixed(0)}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ padding: "5px 10px", fontSize: 12, minHeight: 30 }}
+                      onClick={() => setTenderedAmount(total.toFixed(2))}
+                    >
+                      Exact
+                    </button>
+                  </div>
+                  <input
+                    className="crx-input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Amount received"
+                    value={tenderedAmount}
+                    onChange={(e) => setTenderedAmount(e.target.value)}
+                  />
+                  {tenderedAmount ? (
+                    <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "#166534" }}>
+                      <span>Change due</span>
+                      <span>${changeDue.toFixed(2)}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 92px", gap: 8, marginBottom: 12 }}>
+                <select
+                  className="crx-select"
+                  value={discountType}
+                  onChange={(e) => setDiscountType(e.target.value)}
+                  title="Discount type"
+                >
+                  <option value="none">No discount</option>
+                  <option value="percent">Percent discount</option>
+                  <option value="amount">Dollar discount</option>
+                </select>
+                <input
+                  className="crx-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  disabled={discountType === "none"}
+                  title="Discount value"
+                />
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", marginBottom: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={taxExempt}
+                  onChange={(e) => setTaxExempt(e.target.checked)}
+                />
+                Tax exempt sale
+              </label>
+              {demographicConfig.collectSaleNotes ? (
+                <textarea
+                  className="crx-input"
+                  rows={3}
+                  placeholder="Sale note, delivery instruction, or manual reference"
+                  value={saleNote}
+                  onChange={(e) => setSaleNote(e.target.value)}
+                  style={{ resize: "vertical", marginBottom: 16 }}
+                />
+              ) : null}
               <div style={{ background: "#f9fafb", borderRadius: 10, padding: 14, marginBottom: 16 }}>
                 {selectedPickup ? (
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
@@ -539,7 +744,8 @@ export default function PosScreen() {
                 ) : null}
                 {[
                   ["OTC subtotal", `$${otcSubtotal.toFixed(2)}`],
-                  ["Tax (5% on OTC)", `$${tax.toFixed(2)}`],
+                  ...(discount > 0 ? [["Discount", `-$${discount.toFixed(2)}`]] : []),
+                  [`Tax (${taxExempt ? "exempt" : `${(taxRate * 100).toFixed(2)}% on OTC`})`, `$${tax.toFixed(2)}`],
                 ].map(([label, value]) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
                     <span>{label}</span>
