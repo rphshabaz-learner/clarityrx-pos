@@ -101,6 +101,15 @@ const PERMISSIONS = {
     "technician",
     "assistant",
   ],
+  "pos.customers": [
+    "admin",
+    "pharmacist",
+    "relief_pharmacist",
+    "store_manager",
+    "technician",
+    "assistant",
+    "cashier",
+  ],
 };
 
 export const SCREEN_IDS = ["pos"];

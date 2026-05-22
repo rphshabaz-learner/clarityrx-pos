@@ -12,7 +12,7 @@
 import { scopedIndexedDbName } from "../session/scopedStorage";
 
 const BASE_DB_NAME = "clarityrx-local-v1";
-const DB_VERSION = 10;
+const DB_VERSION = 11;
 const STORE_KV = "kv";
 const STORE_ACTIVITIES = "activities";
 const STORE_DPD_PRODUCTS = "dpd_products";
@@ -26,6 +26,7 @@ const STORE_VENDOR_RETURNS = "vendor_returns";
 const STORE_DAMAGED_GOODS = "damaged_goods";
 const STORE_FOLLOWUPS = "follow_ups";
 const STORE_POS_PROMOTIONS = "pos_promotions";
+const STORE_POS_CUSTOMERS = "pos_customers";
 
 function txDone(tx) {
   return new Promise((resolve, reject) => {
@@ -133,6 +134,13 @@ export function openClarityDb() {
         store.createIndex("source", "source", { unique: false });
         store.createIndex("startAt", "startAt", { unique: false });
         store.createIndex("endAt", "endAt", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_POS_CUSTOMERS)) {
+        const store = db.createObjectStore(STORE_POS_CUSTOMERS, { keyPath: "id" });
+        store.createIndex("accountNumber", "accountNumber", { unique: false });
+        store.createIndex("type", "type", { unique: false });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("updatedAt", "updatedAt", { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -785,5 +793,27 @@ export async function savePosPromotionSyncMeta(meta) {
   const db = await getClarityDb();
   const tx = db.transaction([STORE_KV], "readwrite");
   tx.objectStore(STORE_KV).put({ key: PROMO_SYNC_KV_KEY, value: meta, updatedAt: new Date().toISOString() });
+  await txDone(tx);
+}
+
+export async function listPosCustomers() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_CUSTOMERS], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_POS_CUSTOMERS).getAll());
+  await txDone(tx);
+  return all.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+}
+
+export async function savePosCustomer(customer) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_CUSTOMERS], "readwrite");
+  tx.objectStore(STORE_POS_CUSTOMERS).put(customer);
+  await txDone(tx);
+}
+
+export async function deletePosCustomer(id) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_CUSTOMERS], "readwrite");
+  tx.objectStore(STORE_POS_CUSTOMERS).delete(id);
   await txDone(tx);
 }

@@ -6,7 +6,15 @@ import PosDemographicBar from "../../components/pos/PosDemographicBar";
 import PosFavoritesPanel from "../../components/pos/PosFavoritesPanel";
 import PosManagePanel from "../../components/pos/PosManagePanel";
 import PosPromotionsPanel from "../../components/pos/promotions/PosPromotionsPanel";
+import PosCustomersPanel from "../../components/pos/customers/PosCustomersPanel";
 import PosPurchasingPanel from "../../components/pos/purchasing/PosPurchasingPanel";
+import { customerDisplayName } from "../../lib/customers/customerTypes";
+import PosSalesRegisterPanel from "../../components/pos/sales/PosSalesRegisterPanel";
+import {
+  computeCouponDiscount,
+  computeLineTotal,
+  loyaltyRedemptionAmount,
+} from "../../lib/posSalesRegister";
 import {
   favoriteItemToCartLine,
   loadPosDemographicConfig,
@@ -16,21 +24,21 @@ import {
   serviceItemToCartLine,
 } from "../../lib/posFavorites";
 import { useSecurelinkPayment } from "../../hooks/useSecurelinkPayment";
+import { usePosTill } from "../../context/PosTillContext";
 import { isCardPayMethod } from "../../lib/posPayments";
+import { clearSuspendedSale, loadSuspendedSale, saveSuspendedSale } from "../../lib/posSuspendedSale";
 import { isSecurelinkEnabled, resolveSecurelinkTerminalId } from "../../lib/securelinkConfig";
 import { completePosSale, lookupPosPickup, transmitInventoryAdjustments } from "../../services/posApi";
 import { POS_DEFAULT_CART, POS_FRONT_STORE_ITEMS } from "./posCatalog";
 
 const POS_WORKSPACE_TABS = [
-  { id: "till", label: "Till" },
+  { id: "till", label: "Sales" },
+  { id: "customers", label: "Customers" },
   { id: "purchasing", label: "Purchasing" },
   { id: "promotions", label: "Promotions" },
   { id: "favorites", label: "Favorites" },
   { id: "manage", label: "Manage" },
 ];
-
-const POS_TILL_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
-const POS_TILL_STORAGE_KEY = "clarityrx.pos.selectedTill";
 
 const QUICK_SERVICE_ITEMS = [
   { sku: "SVC-BAG", name: "Reusable bag", price: 0.25 },
@@ -40,15 +48,6 @@ const QUICK_SERVICE_ITEMS = [
 
 function clampMoney(value) {
   return Math.max(0, Number(value) || 0);
-}
-
-function loadSelectedTillNumber() {
-  try {
-    const saved = Number(window.localStorage.getItem(POS_TILL_STORAGE_KEY));
-    return POS_TILL_OPTIONS.includes(saved) ? saved : 1;
-  } catch {
-    return 1;
-  }
 }
 
 function PosToast({ message, type = "info", duration = 3000, onClose }) {
@@ -89,11 +88,23 @@ export default function PosScreen() {
   const { accessToken } = useAuth();
   const { hasPermission } = useRoleAccess();
   const { logActivity, runAutosave } = usePosWorkspaceData();
+  const {
+    selectedTillNumber,
+    registerTillActions,
+    setLastCompletedSale,
+    refreshSuspendedSale,
+    clearSuspended,
+    pushHeaderAlert,
+    managerOverrideActive,
+  } = usePosTill();
   const canPurchasing = hasPermission("pos.purchasing");
   const canPromotions = hasPermission("pos.promotions");
+  const canCustomers = hasPermission("pos.customers");
 
   const [workspaceTab, setWorkspaceTab] = useState("till");
-  const [selectedTillNumber, setSelectedTillNumber] = useState(loadSelectedTillNumber);
+  const [activeCustomer, setActiveCustomer] = useState(null);
+  const [customersPanelSection, setCustomersPanelSection] = useState("profiles");
+  const [customersPanelCustomerId, setCustomersPanelCustomerId] = useState("");
   const [favoritesConfig, setFavoritesConfig] = useState(loadPosFavoritesConfig);
   const [demographicConfig, setDemographicConfig] = useState(loadPosDemographicConfig);
   const [selectedDemographicId, setSelectedDemographicId] = useState(
@@ -111,6 +122,18 @@ export default function PosScreen() {
   const [discountType, setDiscountType] = useState(() => loadPosDemographicConfig().defaultDiscountType || "none");
   const [discountValue, setDiscountValue] = useState(() => loadPosDemographicConfig().defaultDiscountValue || 0);
   const [tenderedAmount, setTenderedAmount] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCouponCode, setAppliedCouponCode] = useState("");
+  const [loyaltyPoints, setLoyaltyPoints] = useState("");
+  const [splitEnabled, setSplitEnabled] = useState(false);
+  const [splitPayments, setSplitPayments] = useState([
+    { method: "Cash", amount: "" },
+    { method: "Credit Card", amount: "" },
+  ]);
+  const [activeDepartment, setActiveDepartment] = useState(null);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState(null);
+  const [pendingChargeAfterSignature, setPendingChargeAfterSignature] = useState(false);
   const [toast, setToast] = useState(null);
   const [charging, setCharging] = useState(false);
   const [cardPaymentStatus, setCardPaymentStatus] = useState(null);
@@ -126,14 +149,6 @@ export default function PosScreen() {
 
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedBagScan = bagScan.trim();
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(POS_TILL_STORAGE_KEY, String(selectedTillNumber));
-    } catch {
-      // Ignore storage failures; the selected till still works for this session.
-    }
-  }, [selectedTillNumber]);
 
   const filteredStoreItems = useMemo(() => {
     if (!normalizedSearch) return POS_FRONT_STORE_ITEMS;
@@ -255,6 +270,21 @@ export default function PosScreen() {
     );
   }, []);
 
+  const updateCartPrice = useCallback((sku, nextPrice) => {
+    if (!managerOverrideActive) return;
+    setCart((prev) =>
+      prev.map((row) => (row.sku === sku ? { ...row, price: Math.max(0, Number(nextPrice) || 0) } : row))
+    );
+  }, [managerOverrideActive]);
+
+  const updateLineDiscount = useCallback((sku, nextDiscount) => {
+    setCart((prev) =>
+      prev.map((row) =>
+        row.sku === sku ? { ...row, lineDiscount: Math.max(0, Number(nextDiscount) || 0) } : row
+      )
+    );
+  }, []);
+
   const clearCart = useCallback(() => {
     setCart([]);
     setSelectedPickup(null);
@@ -262,10 +292,253 @@ export default function PosScreen() {
     setBagScan("");
     setSaleNote("");
     setTenderedAmount("");
-    setToast({ message: "Till cleared.", type: "info" });
+    setCouponCode("");
+    setAppliedCouponCode("");
+    setLoyaltyPoints("");
+    setSplitEnabled(false);
+    setSignatureDataUrl(null);
+    setToast({ message: "Register cleared.", type: "info" });
   }, []);
 
-  const otcSubtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const buildSaleSnapshot = useCallback(
+    () => ({
+      savedAt: Date.now(),
+      tillNumber: selectedTillNumber,
+      cart,
+      selectedPickup,
+      payMethod,
+      saleNote,
+      taxExempt,
+      discountType,
+      discountValue,
+      tenderedAmount,
+      couponCode: appliedCouponCode,
+      loyaltyPoints,
+      splitEnabled,
+      splitPayments,
+      signatureDataUrl,
+      selectedDemographicId,
+      workspaceTab,
+    }),
+    [
+      appliedCouponCode,
+      cart,
+      discountType,
+      discountValue,
+      loyaltyPoints,
+      payMethod,
+      saleNote,
+      selectedDemographicId,
+      selectedPickup,
+      selectedTillNumber,
+      signatureDataUrl,
+      splitEnabled,
+      splitPayments,
+      taxExempt,
+      tenderedAmount,
+      workspaceTab,
+    ]
+  );
+
+  const restoreSaleSnapshot = useCallback((snapshot) => {
+    if (!snapshot) return;
+    setCart(Array.isArray(snapshot.cart) ? snapshot.cart : []);
+    setSelectedPickup(snapshot.selectedPickup || null);
+    setPayMethod(snapshot.payMethod || "Credit Card");
+    setSaleNote(snapshot.saleNote || "");
+    setTaxExempt(Boolean(snapshot.taxExempt));
+    setDiscountType(snapshot.discountType || "none");
+    setDiscountValue(snapshot.discountValue || 0);
+    setTenderedAmount(snapshot.tenderedAmount || "");
+    setAppliedCouponCode(snapshot.couponCode || "");
+    setCouponCode(snapshot.couponCode || "");
+    setLoyaltyPoints(snapshot.loyaltyPoints || "");
+    setSplitEnabled(Boolean(snapshot.splitEnabled));
+    setSplitPayments(
+      Array.isArray(snapshot.splitPayments) && snapshot.splitPayments.length
+        ? snapshot.splitPayments
+        : [
+            { method: "Cash", amount: "" },
+            { method: "Credit Card", amount: "" },
+          ]
+    );
+    setSignatureDataUrl(snapshot.signatureDataUrl || null);
+    setSelectedDemographicId(snapshot.selectedDemographicId || demographicConfig.defaultId);
+    setWorkspaceTab(snapshot.workspaceTab === "till" ? "till" : "till");
+    setBagScan("");
+    setSearch("");
+  }, [demographicConfig.defaultId]);
+
+  const handleSuspendSale = useCallback(() => {
+    if (cart.length === 0 && !selectedPickup) {
+      setToast({ message: "Nothing on the till to suspend.", type: "warning" });
+      return false;
+    }
+    const snapshot = buildSaleSnapshot();
+    saveSuspendedSale(snapshot);
+    refreshSuspendedSale();
+    clearCart();
+    pushHeaderAlert({ id: "suspended-sale", tone: "warn", message: "Sale suspended — use Resume when ready." });
+    logActivity("pos", "Sale suspended", { tillNumber: selectedTillNumber, lines: cart.length });
+    setToast({ message: "Sale suspended.", type: "success" });
+    return true;
+  }, [
+    buildSaleSnapshot,
+    cart.length,
+    clearCart,
+    logActivity,
+    pushHeaderAlert,
+    refreshSuspendedSale,
+    selectedPickup,
+    selectedTillNumber,
+  ]);
+
+  const handleResumeSale = useCallback(() => {
+    const snapshot = loadSuspendedSale();
+    if (!snapshot) {
+      setToast({ message: "No suspended sale found.", type: "warning" });
+      return false;
+    }
+    restoreSaleSnapshot(snapshot);
+    clearSuspendedSale();
+    clearSuspended();
+    refreshSuspendedSale();
+    logActivity("pos", "Sale resumed", { tillNumber: selectedTillNumber });
+    setToast({ message: "Suspended sale restored.", type: "success" });
+    return true;
+  }, [clearSuspended, logActivity, refreshSuspendedSale, restoreSaleSnapshot, selectedTillNumber]);
+
+  const handleNoSale = useCallback(() => {
+    logActivity("pos", "No sale — drawer open", { tillNumber: selectedTillNumber });
+    setToast({ message: "No sale recorded. Cash drawer signal sent.", type: "info" });
+    return true;
+  }, [logActivity, selectedTillNumber]);
+
+  const handleCustomerLookup = useCallback(
+    async (query) => {
+      const value = String(query || "").trim();
+      if (!value) return false;
+
+      if (canCustomers) {
+        const { searchPosCustomers } = await import("../../lib/customers/customerSearch");
+        const { listPosCustomers } = await import("../../lib/clarityIndexedDb");
+        const rows = await listPosCustomers();
+        const hit = searchPosCustomers(rows, value)[0];
+        if (hit) {
+          setActiveCustomer(hit);
+          setCustomersPanelCustomerId(hit.id);
+          setCustomersPanelSection("profiles");
+          setWorkspaceTab("customers");
+          setToast({ message: `Customer: ${customerDisplayName(hit)} (${hit.accountNumber})`, type: "success" });
+          return true;
+        }
+      }
+
+      setWorkspaceTab("till");
+      if (/^[A-Za-z0-9-]+$/.test(value) && value.length >= 4) {
+        await handleBagScan(value);
+        return true;
+      }
+      setSearch(value);
+      setToast({ message: `Searching inventory for “${value}”.`, type: "info" });
+      return true;
+    },
+    [canCustomers, handleBagScan]
+  );
+
+  const handleAttachCustomerToTill = useCallback((customer) => {
+    if (!customer) return;
+    setActiveCustomer(customer);
+    setWorkspaceTab("till");
+    if (customer.taxExempt?.enabled) {
+      setTaxExempt(true);
+    }
+    if (customer.seniorDiscount?.enabled) {
+      setDiscountType("percent");
+      setDiscountValue(customer.seniorDiscount.percent ?? 10);
+    }
+    if (Number(customer.loyalty?.pointsBalance) > 0) {
+      setLoyaltyPoints(String(customer.loyalty.pointsBalance));
+    }
+    const alerts = (customer.notes || []).filter((n) => n.severity === "alert");
+    if (alerts.length) {
+      pushHeaderAlert({
+        id: `customer-alert-${customer.id}`,
+        tone: "warn",
+        message: `${customerDisplayName(customer)}: ${alerts[0].text}`,
+      });
+    }
+    setToast({ message: `${customerDisplayName(customer)} attached to till.`, type: "success" });
+    logActivity("pos", "Customer attached to till", {
+      customerId: customer.id,
+      accountNumber: customer.accountNumber,
+      tillNumber: selectedTillNumber,
+    });
+  }, [logActivity, pushHeaderAlert, selectedTillNumber]);
+
+  const accountCustomerLabel = activeCustomer
+    ? `${customerDisplayName(activeCustomer)} · ${activeCustomer.accountNumber || ""}`
+    : "";
+
+  const handleAttachPickup = useCallback((pickup) => {
+    if (!pickup) return false;
+    setSelectedPickup(pickup);
+    setWorkspaceTab("till");
+    setToast({
+      message: `${pickup.rxCount || 1} Rx attached ($${Number(pickup.totalCopay || 0).toFixed(2)})`,
+      type: "success",
+    });
+    return true;
+  }, []);
+
+  const handleReprintReceipt = useCallback(
+    (sale) => {
+      const invoice = sale?.invoiceNumber || "—";
+      const total = Number(sale?.total || 0).toFixed(2);
+      logActivity("pos", "Receipt reprint", { invoiceNumber: invoice, tillNumber: selectedTillNumber });
+      setToast({ message: `Reprint queued for invoice ${invoice} ($${total}).`, type: "success" });
+      return true;
+    },
+    [logActivity, selectedTillNumber]
+  );
+
+  useEffect(() => {
+    registerTillActions({
+      suspendSale: handleSuspendSale,
+      resumeSale: handleResumeSale,
+      noSale: handleNoSale,
+      customerLookup: handleCustomerLookup,
+      attachPickup: handleAttachPickup,
+      reprintReceipt: handleReprintReceipt,
+      managerOverride: () => {
+        logActivity("pos", "Manager override enabled", { tillNumber: selectedTillNumber });
+      },
+      priceCheck: () => true,
+    });
+    return () => registerTillActions(null);
+  }, [
+    handleAttachPickup,
+    handleCustomerLookup,
+    handleNoSale,
+    handleReprintReceipt,
+    handleResumeSale,
+    handleSuspendSale,
+    logActivity,
+    registerTillActions,
+    selectedTillNumber,
+  ]);
+
+  useEffect(() => {
+    if (loadSuspendedSale()) {
+      pushHeaderAlert({
+        id: "suspended-sale",
+        tone: "warn",
+        message: "Suspended sale on this till — tap Resume to continue.",
+      });
+    }
+  }, [pushHeaderAlert]);
+
+  const otcSubtotal = cart.reduce((sum, item) => sum + computeLineTotal(item), 0);
   const discountBase = Math.max(0, otcSubtotal);
   const discount =
     discountType === "percent"
@@ -273,10 +546,14 @@ export default function PosScreen() {
       : discountType === "amount"
         ? Math.min(discountBase, clampMoney(discountValue))
         : 0;
-  const taxableSubtotal = Math.max(0, otcSubtotal - discount);
+  const afterCartDiscount = Math.max(0, otcSubtotal - discount);
+  const couponDiscount = computeCouponDiscount(appliedCouponCode, afterCartDiscount);
+  const afterCoupon = Math.max(0, afterCartDiscount - couponDiscount);
+  const loyaltyRedemption = loyaltyRedemptionAmount(loyaltyPoints, afterCoupon);
+  const taxableSubtotal = Math.max(0, afterCoupon - loyaltyRedemption);
   const taxRate = Number(demographicConfig.taxRate) || 0;
   const tax = taxExempt ? 0 : taxableSubtotal * taxRate;
-  const total = taxableSubtotal + tax + rxCopay;
+  const total = Math.max(0, taxableSubtotal + tax + rxCopay);
   const numericTenderedAmount = Number(tenderedAmount);
   const changeDue = payMethod === "Cash" && Number.isFinite(numericTenderedAmount)
     ? Math.max(0, numericTenderedAmount - total)
@@ -297,11 +574,16 @@ export default function PosScreen() {
     setCardPaymentStatus(null);
     try {
       let cardPayment = null;
-      if (securelinkActive && isCardPayMethod(payMethod)) {
+      const cardSplitRow = splitEnabled
+        ? splitPayments.find((row) => isCardPayMethod(row.method) && Number(row.amount) > 0)
+        : null;
+      const cardAmount = cardSplitRow ? Number(cardSplitRow.amount) : total;
+      const cardMethod = cardSplitRow?.method || payMethod;
+      if (securelinkActive && (isCardPayMethod(payMethod) || cardSplitRow)) {
         const terminalId = resolveSecurelinkTerminalId(selectedTillNumber, demographicConfig);
         cardPayment = await processCardPayment({
-          amount: total,
-          payMethod,
+          amount: cardAmount,
+          payMethod: cardMethod,
           tillNumber: selectedTillNumber,
           terminalId,
           accessToken,
@@ -313,7 +595,7 @@ export default function PosScreen() {
         {
           pickupId: selectedPickup?.id || null,
           cart,
-          payMethod,
+          payMethod: splitEnabled ? "Split" : payMethod,
           tillNumber: selectedTillNumber,
           rxCopay,
           demographic: demographicLabel,
@@ -324,6 +606,18 @@ export default function PosScreen() {
             value: clampMoney(discountValue),
             amount: Number(discount.toFixed(2)),
           },
+          couponCode: appliedCouponCode || null,
+          couponDiscount: Number(couponDiscount.toFixed(2)),
+          loyaltyPointsRedeemed: Number(loyaltyPoints) || 0,
+          loyaltyRedemption: Number(loyaltyRedemption.toFixed(2)),
+          splitPayments: splitEnabled
+            ? splitPayments.map((row) => ({
+                method: row.method,
+                amount: Number(Number(row.amount).toFixed(2)),
+              }))
+            : null,
+          signatureCaptured: Boolean(signatureDataUrl),
+          signatureImage: signatureDataUrl || null,
           taxExempt,
           tenderedAmount: Number.isFinite(numericTenderedAmount) ? numericTenderedAmount : null,
           changeDue: Number(changeDue.toFixed(2)),
@@ -379,11 +673,24 @@ export default function PosScreen() {
         pickupId: selectedPickup?.id || null,
         invoiceNumber: result.invoiceNumber,
       });
+      setLastCompletedSale({
+        invoiceNumber: result.invoiceNumber,
+        total: Number(total.toFixed(2)),
+        payMethod,
+        tillNumber: selectedTillNumber,
+        chargedAt: Date.now(),
+        lineItems: cart.length,
+      });
       runAutosave();
       setCart([]);
       setSearch("");
       setSaleNote("");
       setTenderedAmount("");
+      setCouponCode("");
+      setAppliedCouponCode("");
+      setLoyaltyPoints("");
+      setSplitEnabled(false);
+      setSignatureDataUrl(null);
       setSelectedPickup(null);
       setSelectedDemographicId(demographicConfig.defaultId);
     } catch (cause) {
@@ -402,18 +709,84 @@ export default function PosScreen() {
     setToast({ message: "Card payment cancelled.", type: "info" });
   };
 
+  const requiresSignature = useCallback(() => {
+    if (signatureDataUrl) return false;
+    return isCardPayMethod(payMethod) || total >= 25;
+  }, [payMethod, signatureDataUrl, total]);
+
+  const validateSplitPayments = useCallback(() => {
+    if (!splitEnabled) return true;
+    const amounts = splitPayments.map((row) => Number(row.amount)).filter((value) => Number.isFinite(value));
+    if (amounts.length < 2 || amounts.some((value) => value <= 0)) {
+      setToast({ message: "Enter an amount for each split payment.", type: "warning" });
+      return false;
+    }
+    const sum = amounts.reduce((acc, value) => acc + value, 0);
+    if (Math.abs(sum - total) > 0.02) {
+      setToast({
+        message: `Split payments must equal $${total.toFixed(2)} (currently $${sum.toFixed(2)}).`,
+        type: "warning",
+      });
+      return false;
+    }
+    return true;
+  }, [splitEnabled, splitPayments, total]);
+
+  const handleApplyCoupon = useCallback(() => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) {
+      setAppliedCouponCode("");
+      return;
+    }
+    const amount = computeCouponDiscount(code, afterCartDiscount);
+    if (!amount) {
+      setToast({ message: `Coupon “${code}” is not recognized.`, type: "warning" });
+      return;
+    }
+    setAppliedCouponCode(code);
+    setToast({ message: `Coupon ${code} applied (-$${amount.toFixed(2)}).`, type: "success" });
+  }, [afterCartDiscount, couponCode]);
+
+  const handleSplitPaymentChange = useCallback((index, field, value) => {
+    setSplitPayments((prev) =>
+      prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row))
+    );
+  }, []);
+
   const handleCharge = async () => {
     if (cart.length === 0 && !selectedPickup) {
       setToast({ message: "Cart is empty", type: "warning" });
       return;
     }
 
+    if (!validateSplitPayments()) return;
+
     if (!demographicConfig.skipPrompt && !showDemographicPrompt) {
       setShowDemographicPrompt(true);
       return;
     }
 
+    if (requiresSignature()) {
+      setPendingChargeAfterSignature(true);
+      setShowSignatureModal(true);
+      return;
+    }
+
     await runCharge();
+  };
+
+  const handleSignatureAccept = async (dataUrl) => {
+    setSignatureDataUrl(dataUrl);
+    setShowSignatureModal(false);
+    if (pendingChargeAfterSignature) {
+      setPendingChargeAfterSignature(false);
+      await runCharge();
+    }
+  };
+
+  const handleSignatureCancel = () => {
+    setShowSignatureModal(false);
+    setPendingChargeAfterSignature(false);
   };
 
   const handleSaveFavorites = ({ tabs, items }) => {
@@ -431,32 +804,22 @@ export default function PosScreen() {
 
   return (
     <div className="crx-content screen-enter">
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Point of Sale</div>
-            <div style={{ marginTop: 4, fontSize: 12, color: "#6b7280", fontWeight: 700 }}>
-              Active till: Till {selectedTillNumber}
-            </div>
-          </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6b7280", fontWeight: 800, textTransform: "uppercase" }}>
-            Till
-            <select
-              className="crx-input"
-              value={selectedTillNumber}
-              onChange={(event) => setSelectedTillNumber(Number(event.target.value))}
-              style={{ width: 112, height: 40, padding: "0 12px", fontSize: 13, fontWeight: 700, textTransform: "none" }}
-              aria-label="Select active till"
-            >
-              {POS_TILL_OPTIONS.map((tillNumber) => (
-                <option key={tillNumber} value={tillNumber}>
-                  Till {tillNumber}
-                </option>
-              ))}
-            </select>
-          </label>
+      {managerOverrideActive ? (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: "#fffbeb",
+            border: "1px solid #fde68a",
+            fontSize: 13,
+            fontWeight: 600,
+            color: "#92400e",
+          }}
+        >
+          Manager override is active on this till.
         </div>
-      </div>
+      ) : null}
 
       <PosDemographicBar
         options={demographicConfig.options}
@@ -470,6 +833,7 @@ export default function PosScreen() {
         {POS_WORKSPACE_TABS.filter((tab) => {
           if (tab.id === "purchasing" && !canPurchasing) return false;
           if (tab.id === "promotions" && !canPromotions) return false;
+          if (tab.id === "customers" && !canCustomers) return false;
           return true;
         }).map((tab) => (
           <button
@@ -501,6 +865,18 @@ export default function PosScreen() {
         />
       ) : null}
 
+      {workspaceTab === "customers" ? (
+        <PosCustomersPanel
+          onNotify={(message, type) => setToast({ message, type: type || "info" })}
+          logActivity={logActivity}
+          onAttachToTill={handleAttachCustomerToTill}
+          onAttachPickup={handleAttachPickup}
+          initialSection={customersPanelSection}
+          initialCustomerId={customersPanelCustomerId}
+          onSectionChange={setCustomersPanelSection}
+        />
+      ) : null}
+
       {workspaceTab === "purchasing" ? (
         <PosPurchasingPanel
           accessToken={accessToken}
@@ -518,416 +894,77 @@ export default function PosScreen() {
       ) : null}
 
       {workspaceTab === "till" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="crx-card" style={{ padding: "12px 18px" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: 8, textTransform: "uppercase" }}>
-                Scan Rx bag
-              </div>
-              <input
-                className="crx-input"
-                placeholder="Scan bag barcode"
-                value={bagScan}
-                onChange={(e) => setBagScan(e.target.value)}
-                onKeyDown={handleBagScanKeyDown}
-                style={{ width: "100%" }}
-              />
-              {selectedPickup ? (
-                <div style={{ marginTop: 10, fontSize: 13, color: "#15803d", fontWeight: 600 }}>
-                  Rx copay attached: ${rxCopay.toFixed(2)}
-                </div>
-              ) : null}
-              <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
-                Customer: <strong>{demographicLabel}</strong>
-              </div>
-              {demographicConfig.promptForBag ? (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                  {QUICK_SERVICE_ITEMS.map((item) => (
-                    <button
-                      key={item.sku}
-                      type="button"
-                      className="btn-secondary"
-                      style={{ padding: "6px 10px", fontSize: 12 }}
-                      onClick={() => addServiceItem(item)}
-                    >
-                      {item.name}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="crx-card">
-              <div className="crx-card-header">
-                <span className="crx-card-title">POS Cart</span>
-                <div style={{ fontSize: 12, color: "#9ca3af" }}>{cart.length} line(s)</div>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  style={{ padding: "4px 10px", fontSize: 11, marginLeft: 8 }}
-                  onClick={() => setWorkspaceTab("favorites")}
-                >
-                  Favorites
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  style={{ padding: "4px 10px", fontSize: 11 }}
-                  onClick={clearCart}
-                  disabled={cart.length === 0 && !selectedPickup}
-                >
-                  Clear
-                </button>
-              </div>
-              <div style={{ padding: "0 18px" }}>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 132px 80px 80px 44px",
-                    gap: 8,
-                    padding: "8px 0",
-                    borderBottom: "1px solid #f3f4f6",
-                  }}
-                >
-                  {["Item", "Qty", "Price", "Total", ""].map((h) => (
-                    <div
-                      key={h}
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "#9ca3af",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      {h}
-                    </div>
-                  ))}
-                </div>
-                {cart.length > 0 ? (
-                  cart.map((item) => (
-                    <div
-                      key={item.sku}
-                      className="pos-item"
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 132px 80px 80px 44px",
-                        gap: 8,
-                        alignItems: "center",
-                        borderBottom: "1px solid #f3f4f6",
-                        padding: "12px 0",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{item.name}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{item.category}</div>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "44px 52px 44px", gap: 4, alignItems: "center" }}>
-                        <button
-                          type="button"
-                          className="btn-secondary crx-qty-btn"
-                          onClick={() => updateCartQty(item.sku, item.qty - 1)}
-                          title="Decrease quantity"
-                          aria-label="Decrease quantity"
-                        >
-                          -
-                        </button>
-                        <input
-                          className="crx-input"
-                          type="number"
-                          min="0"
-                          value={item.qty}
-                          onChange={(e) => updateCartQty(item.sku, e.target.value)}
-                          style={{ padding: "4px 6px", textAlign: "center" }}
-                          title="Quantity"
-                        />
-                        <button
-                          type="button"
-                          className="btn-secondary crx-qty-btn"
-                          onClick={() => updateCartQty(item.sku, item.qty + 1)}
-                          title="Increase quantity"
-                          aria-label="Increase quantity"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6b7280" }}>${item.price.toFixed(2)}</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
-                        ${(item.price * item.qty).toFixed(2)}
-                      </div>
-                      <button
-                        type="button"
-                        className="crx-icon-btn"
-                        onClick={() => removeFromCart(item.sku)}
-                        title="Remove item"
-                        aria-label="Remove item"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ padding: 20, textAlign: "center", color: "#9ca3af" }}>Cart is empty</div>
-                )}
-              </div>
-            </div>
-
-            <div className="crx-card">
-              <div className="crx-card-header">
-                <span className="crx-card-title">POS Inventory</span>
-                <div style={{ position: "relative", flex: 1, maxWidth: 300, marginLeft: 16 }}>
-                  <span style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 12 }}>
-                    ⌕
-                  </span>
-                  <input
-                    className="crx-input"
-                    placeholder="Search or scan SKU, barcode, or item"
-                    style={{ paddingLeft: 28, height: 32, fontSize: 12 }}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={handleSearchKeyDown}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  style={{ padding: "6px 12px", fontSize: 12, marginLeft: 8, opacity: filteredStoreItems[0] ? 1 : 0.6 }}
-                  disabled={!filteredStoreItems[0]}
-                  onClick={() => filteredStoreItems[0] && addToCart(filteredStoreItems[0])}
-                >
-                  + Add first
-                </button>
-              </div>
-              <div style={{ padding: "0 18px 10px" }}>
-                {filteredStoreItems.slice(0, 8).map((item) => (
-                  <div
-                    key={item.sku}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "140px 1fr 100px 90px 90px",
-                      gap: 8,
-                      alignItems: "center",
-                      padding: "12px 0",
-                      borderBottom: "1px solid #f9fafb",
-                    }}
-                  >
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#6b7280" }}>{item.sku}</div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>${item.price.toFixed(2)}</div>
-                    </div>
-                    <div style={{ fontSize: 12, color: "#6b7280" }}>{item.category}</div>
-                    <div style={{ fontSize: 12, color: "#374151" }}>{item.stock}</div>
-                    <button type="button" className="btn-secondary" style={{ padding: "6px 10px", fontSize: 12 }} onClick={() => addToCart(item)}>
-                      Add
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="crx-card" style={{ height: "fit-content" }}>
-            <div className="crx-card-header">
-              <span className="crx-card-title">Payment</span>
-            </div>
-            <div style={{ padding: "16px 18px" }}>
-              {showDemographicPrompt && !demographicConfig.skipPrompt ? (
-                <div
-                  style={{
-                    background: "#fffbeb",
-                    border: "1px solid #fde68a",
-                    borderRadius: 10,
-                    padding: 12,
-                    marginBottom: 14,
-                    fontSize: 13,
-                    color: "#92400e",
-                  }}
-                >
-                  Confirm customer: <strong>{demographicLabel}</strong>. Tap Charge again or change customer above.
-                </div>
-              ) : null}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
-                {["Cash", "Debit", "Credit Card", "Insurance", "Other"].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={`pay-opt${payMethod === m ? " active" : ""}`}
-                    onClick={() => setPayMethod(m)}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-              {payMethod === "Cash" ? (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: 8, textTransform: "uppercase" }}>
-                    Cash tendered
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-                    {(demographicConfig.quickTenderAmounts || [10, 20, 50, 100]).map((amount) => (
-                      <button
-                        key={amount}
-                        type="button"
-                        className="btn-secondary"
-                        style={{ padding: "5px 10px", fontSize: 12, minHeight: 30 }}
-                        onClick={() => setTenderedAmount(String(amount))}
-                      >
-                        ${Number(amount).toFixed(0)}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      style={{ padding: "5px 10px", fontSize: 12, minHeight: 30 }}
-                      onClick={() => setTenderedAmount(total.toFixed(2))}
-                    >
-                      Exact
-                    </button>
-                  </div>
-                  <input
-                    className="crx-input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Amount received"
-                    value={tenderedAmount}
-                    onChange={(e) => setTenderedAmount(e.target.value)}
-                  />
-                  {tenderedAmount ? (
-                    <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "#166534" }}>
-                      <span>Change due</span>
-                      <span>${changeDue.toFixed(2)}</span>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-              {securelinkActive && isCardPayMethod(payMethod) ? (
-                <div
-                  style={{
-                    background: "#eff6ff",
-                    border: "1px solid #bfdbfe",
-                    borderRadius: 10,
-                    padding: 12,
-                    marginBottom: 14,
-                    fontSize: 13,
-                    color: "#1e40af",
-                  }}
-                >
-                  <strong>Securelink</strong> — card amount is sent to the pinpad when you charge. Terminal{" "}
-                  {resolveSecurelinkTerminalId(selectedTillNumber, demographicConfig)}.
-                </div>
-              ) : null}
-              {charging && cardPaymentStatus ? (
-                <div
-                  style={{
-                    background: "#f0fdf4",
-                    border: "1px solid #bbf7d0",
-                    borderRadius: 10,
-                    padding: 12,
-                    marginBottom: 14,
-                    fontSize: 13,
-                    color: "#166534",
-                  }}
-                >
-                  {cardPaymentStatus.message || "Waiting for pinpad…"}
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ display: "block", marginTop: 10, width: "100%", minHeight: 44 }}
-                    onClick={handleCancelCardPayment}
-                  >
-                    Cancel card payment
-                  </button>
-                </div>
-              ) : null}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 92px", gap: 8, marginBottom: 12 }}>
-                <select
-                  className="crx-select"
-                  value={discountType}
-                  onChange={(e) => setDiscountType(e.target.value)}
-                  title="Discount type"
-                >
-                  <option value="none">No discount</option>
-                  <option value="percent">Percent discount</option>
-                  <option value="amount">Dollar discount</option>
-                </select>
-                <input
-                  className="crx-input"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  disabled={discountType === "none"}
-                  title="Discount value"
-                />
-              </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", marginBottom: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={taxExempt}
-                  onChange={(e) => setTaxExempt(e.target.checked)}
-                />
-                Tax exempt sale
-              </label>
-              {demographicConfig.collectSaleNotes ? (
-                <textarea
-                  className="crx-input"
-                  rows={3}
-                  placeholder="Sale note, delivery instruction, or manual reference"
-                  value={saleNote}
-                  onChange={(e) => setSaleNote(e.target.value)}
-                  style={{ resize: "vertical", marginBottom: 16 }}
-                />
-              ) : null}
-              <div style={{ background: "#f9fafb", borderRadius: 10, padding: 14, marginBottom: 16 }}>
-                {selectedPickup ? (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
-                    <span>Rx copay</span>
-                    <span>${rxCopay.toFixed(2)}</span>
-                  </div>
-                ) : null}
-                {[
-                  ["OTC subtotal", `$${otcSubtotal.toFixed(2)}`],
-                  ...(discount > 0 ? [["Discount", `-$${discount.toFixed(2)}`]] : []),
-                  [`Tax (${taxExempt ? "exempt" : `${(taxRate * 100).toFixed(2)}% on OTC`})`, `$${tax.toFixed(2)}`],
-                ].map(([label, value]) => (
-                  <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
-                    <span>{label}</span>
-                    <span>{value}</span>
-                  </div>
-                ))}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: 18,
-                    fontWeight: 800,
-                    color: "#111827",
-                    paddingTop: 10,
-                    borderTop: "1px solid #e5e7eb",
-                  }}
-                >
-                  <span>Total</span>
-                  <span style={{ color: "#1447e6" }}>${total.toFixed(2)}</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn-primary crx-charge-btn"
-                onClick={handleCharge}
-                disabled={(cart.length === 0 && !selectedPickup) || charging}
-              >
-                {charging
-                  ? securelinkActive && isCardPayMethod(payMethod)
-                    ? "Pinpad…"
-                    : "Processing…"
-                  : `Charge $${total.toFixed(2)}`}
-              </button>
-            </div>
-          </div>
-        </div>
+        <PosSalesRegisterPanel
+          cart={cart}
+          selectedPickup={selectedPickup}
+          rxCopay={rxCopay}
+          demographicLabel={demographicLabel}
+          accountCustomerLabel={accountCustomerLabel}
+          onClearAccountCustomer={() => setActiveCustomer(null)}
+          search={search}
+          bagScan={bagScan}
+          onSearchChange={setSearch}
+          onSearchKeyDown={handleSearchKeyDown}
+          onBagScanChange={setBagScan}
+          onBagScanKeyDown={handleBagScanKeyDown}
+          onClearCart={clearCart}
+          onRemoveLine={removeFromCart}
+          onUpdateQty={updateCartQty}
+          onUpdatePrice={updateCartPrice}
+          onUpdateLineDiscount={updateLineDiscount}
+          managerOverrideActive={managerOverrideActive}
+          favoritesItems={favoritesConfig.items}
+          onAddCatalogItem={addToCart}
+          onAddFavorite={addFavoriteToCart}
+          onFilterDepartment={setActiveDepartment}
+          activeDepartment={activeDepartment}
+          discountType={discountType}
+          discountValue={discountValue}
+          onDiscountTypeChange={setDiscountType}
+          onDiscountValueChange={setDiscountValue}
+          couponCode={couponCode}
+          onCouponCodeChange={setCouponCode}
+          onApplyCoupon={handleApplyCoupon}
+          loyaltyPoints={loyaltyPoints}
+          onLoyaltyPointsChange={setLoyaltyPoints}
+          taxExempt={taxExempt}
+          onTaxExemptChange={setTaxExempt}
+          saleNote={saleNote}
+          onSaleNoteChange={setSaleNote}
+          collectSaleNotes={demographicConfig.collectSaleNotes}
+          otcSubtotal={otcSubtotal}
+          cartDiscount={discount}
+          couponDiscount={couponDiscount}
+          loyaltyRedemption={loyaltyRedemption}
+          tax={tax}
+          taxRate={taxRate}
+          total={total}
+          payMethod={payMethod}
+          onPayMethodChange={setPayMethod}
+          splitEnabled={splitEnabled}
+          onSplitEnabledChange={setSplitEnabled}
+          splitPayments={splitPayments}
+          onSplitPaymentChange={handleSplitPaymentChange}
+          tenderedAmount={tenderedAmount}
+          onTenderedAmountChange={setTenderedAmount}
+          quickTenderAmounts={demographicConfig.quickTenderAmounts}
+          changeDue={changeDue}
+          securelinkActive={securelinkActive}
+          demographicConfig={demographicConfig}
+          selectedTillNumber={selectedTillNumber}
+          charging={charging}
+          cardPaymentStatus={cardPaymentStatus}
+          onCancelCardPayment={handleCancelCardPayment}
+          showDemographicPrompt={showDemographicPrompt && !demographicConfig.skipPrompt}
+          onCharge={handleCharge}
+          onOpenFavorites={() => setWorkspaceTab("favorites")}
+          showSignatureModal={showSignatureModal}
+          onSignatureAccept={handleSignatureAccept}
+          onSignatureCancel={handleSignatureCancel}
+          promptForBag={demographicConfig.promptForBag}
+          quickServiceItems={QUICK_SERVICE_ITEMS}
+          onAddServiceItem={addServiceItem}
+        />
       ) : null}
 
       {toast ? <PosToast message={toast.message} type={toast.type} onClose={() => setToast(null)} /> : null}

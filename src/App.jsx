@@ -5,6 +5,8 @@ import { RoleAccessProvider, useRoleAccess } from "./RoleAccessContext";
 import { QueryProvider } from "./providers/QueryProvider";
 import PosScreen from "./modules/pos/PosScreen";
 import { PosAppDataProvider } from "./PosAppDataProvider";
+import { PosTillProvider } from "./context/PosTillContext";
+import PosTopHeaderBar from "./components/pos/PosTopHeaderBar";
 import PosGlobalStyles from "./PosGlobalStyles";
 
 function PosLoading({ label = "Loading POS…" }) {
@@ -26,7 +28,7 @@ function PosLoading({ label = "Loading POS…" }) {
 
 function PosShell() {
   const { isAuthenticated, loading, workstationLocked, unlockWorkstation, user, logout } = useAuth();
-  const { canAccessScreen, hasPermission } = useRoleAccess();
+  const { canAccessScreen } = useRoleAccess();
   const [unlockPassword, setUnlockPassword] = useState("");
   const [unlockError, setUnlockError] = useState("");
 
@@ -104,20 +106,7 @@ function PosShell() {
 
   return (
     <div className="crx-pos-app">
-      <header className="crx-pos-app__header">
-        <div>
-          <div className="crx-pos-app__title">ClarityRx POS</div>
-          <div className="crx-pos-app__meta">
-            {user?.fullName || user?.username}
-            {!hasPermission("pos.charge") ? " · view only" : ""}
-          </div>
-        </div>
-        <div className="crx-pos-app__actions">
-          <button type="button" className="btn-secondary" onClick={() => logout()}>
-            Sign out
-          </button>
-        </div>
-      </header>
+      <PosTopHeaderBar />
       <main className="crx-pos-app__main">
         <Suspense fallback={<PosLoading />}>
           <PosScreen />
@@ -131,7 +120,9 @@ function PosAuthenticatedTree() {
   return (
     <RoleAccessProvider>
       <PosAppDataProvider>
-        <PosShell />
+        <PosTillProvider>
+          <PosShell />
+        </PosTillProvider>
       </PosAppDataProvider>
     </RoleAccessProvider>
   );
