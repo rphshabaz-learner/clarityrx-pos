@@ -15,11 +15,29 @@ export const DEFAULT_TILL_OPTIONS = {
 
 /** Finestra-style customer types (default skips till prompt when enabled). */
 export const DEFAULT_DEMOGRAPHICS = [
-  { id: "general", label: "General Customer" },
-  { id: "senior", label: "Senior" },
-  { id: "employee", label: "Staff" },
-  { id: "delivery", label: "Delivery" },
+  { id: "male-teen", label: "Male Teen" },
+  { id: "male-adult", label: "Male Adult" },
+  { id: "male-senior", label: "Male Senior" },
+  { id: "female-teen", label: "Female Teen" },
+  { id: "female-adult", label: "Female Adult" },
+  { id: "female-senior", label: "Female Senior" },
 ];
+
+const LEGACY_DEMOGRAPHIC_IDS = new Set(["general", "senior", "employee", "delivery"]);
+
+function isLegacyDemographicOptions(options) {
+  return (
+    options.length === LEGACY_DEMOGRAPHIC_IDS.size &&
+    options.every((option) => LEGACY_DEMOGRAPHIC_IDS.has(option.id))
+  );
+}
+
+function resolveDemographicOptions(parsed) {
+  const saved = Array.isArray(parsed?.options) ? parsed.options : [];
+  if (!saved.length) return DEFAULT_DEMOGRAPHICS;
+  if (isLegacyDemographicOptions(saved)) return DEFAULT_DEMOGRAPHICS;
+  return saved;
+}
 
 /** Quick-access tabs for non-barcoded front-store items (Finestra Favorites). */
 export const DEFAULT_FAVORITE_TABS = [
@@ -68,8 +86,11 @@ export function savePosFavoritesConfig({ tabs, items }) {
 export function loadPosDemographicConfig() {
   const raw = localStorage.getItem(scopedStorageKey(POS_DEMOGRAPHICS_STORAGE_KEY));
   const parsed = safeParse(raw, null);
-  const options = Array.isArray(parsed?.options) && parsed.options.length ? parsed.options : DEFAULT_DEMOGRAPHICS;
-  const defaultId = parsed?.defaultId || options[0]?.id || "general";
+  const options = resolveDemographicOptions(parsed);
+  const fallbackDefaultId = options.some((o) => o.id === "male-adult") ? "male-adult" : options[0]?.id;
+  const defaultId = options.some((o) => o.id === parsed?.defaultId)
+    ? parsed.defaultId
+    : fallbackDefaultId;
   const skipPrompt = Boolean(parsed?.skipPrompt ?? true);
   const quickTenderAmounts = Array.isArray(parsed?.quickTenderAmounts) && parsed.quickTenderAmounts.length
     ? parsed.quickTenderAmounts.map((amount) => Number(amount)).filter((amount) => Number.isFinite(amount) && amount > 0)
