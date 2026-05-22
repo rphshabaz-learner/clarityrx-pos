@@ -1,19 +1,15 @@
 import React from "react";
 
 /**
- * Finestra-style demographic strip: pick customer type or use default without prompting.
+ * Customer type strip: pick customer type or use default without prompting.
  */
 export default function PosDemographicBar({
   options,
   selectedId,
   defaultId,
-  skipPrompt,
   onSelect,
   onSetDefault,
-  onToggleSkipPrompt,
 }) {
-  const defaultLabel = options.find((o) => o.id === defaultId)?.label || "General Customer";
-
   return (
     <div
       className="crx-card"
@@ -46,16 +42,12 @@ export default function PosDemographicBar({
           );
         })}
       </div>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280", cursor: "pointer" }}>
-        <input type="checkbox" checked={skipPrompt} onChange={(e) => onToggleSkipPrompt(e.target.checked)} />
-        Use <strong style={{ color: "#374151" }}>{defaultLabel}</strong> at till (no prompt)
-      </label>
       <button
         type="button"
         className="btn-secondary"
         style={{ padding: "5px 10px", fontSize: 11 }}
         onClick={() => onSetDefault(selectedId)}
-        title="Set selected customer as default (Finestra Set Default Demographic)"
+        title="Set selected customer as default"
       >
         Set default
       </button>
