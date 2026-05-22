@@ -13,7 +13,7 @@ export const DEFAULT_TILL_OPTIONS = {
   quickTenderAmounts: [10, 20, 50, 100],
 };
 
-/** Finestra-style customer types (default skips till prompt when enabled). */
+/** Customer types (default skips till prompt when enabled). */
 export const DEFAULT_DEMOGRAPHICS = [
   { id: "male-teen", label: "Male Teen" },
   { id: "male-adult", label: "Male Adult" },
@@ -39,7 +39,7 @@ function resolveDemographicOptions(parsed) {
   return saved;
 }
 
-/** Quick-access tabs for non-barcoded front-store items (Finestra Favorites). */
+/** Quick-access tabs for non-barcoded front-store items. */
 export const DEFAULT_FAVORITE_TABS = [
   { id: "newspapers", label: "Newspapers" },
   { id: "local", label: "Local" },
