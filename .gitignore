@@ -1,0 +1,8 @@
+node_modules/
+/build
+src/index.build.css
+.env
+.env.local
+.env.*.local
+npm-debug.log*
+.DS_Store
