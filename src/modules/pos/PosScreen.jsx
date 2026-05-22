@@ -352,9 +352,6 @@ export default function PosScreen() {
     <div className="crx-content screen-enter">
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Point of Sale</div>
-        <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-          Finestra-style till: favorites tabs, service shortcuts, customer defaults, discounts, and Kroll pickup queue.
-        </div>
       </div>
 
       <PosDemographicBar
