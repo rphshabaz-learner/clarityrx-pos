@@ -48,7 +48,7 @@ In the **clarityrx-pos** Vercel project, set build-time env vars (then redeploy)
 
 If `REACT_APP_API_BASE_URL` is missing, the till incorrectly calls its own origin (`/api` on the static host). Vercel returns the SPA for GET and **HTTP 405** for POST.
 
-Production builds fail fast when `REACT_APP_API_BASE_URL` is unset (`scripts/check-production-env.js`).
+Production builds log a warning when `REACT_APP_API_BASE_URL` is unset (`scripts/check-production-env.js`). The till will not work until you set it and redeploy.
 
 ## Related repos
 
