@@ -33,15 +33,8 @@ export function PickupQueue({ pickups, selectedPickupId, onSelect, isLoading, er
           <button
             key={pickup.id || pickup.patientId}
             type="button"
+            className={`crx-pickup-btn${selected ? " selected" : ""}`}
             onClick={() => onSelect?.(pickup)}
-            style={{
-              textAlign: "left",
-              cursor: "pointer",
-              border: selected ? "2px solid #16a34a" : "1px solid #bbf7d0",
-              background: selected ? "#ecfdf5" : "#f0fdf4",
-              borderRadius: 12,
-              padding: 12,
-            }}
           >
             <div style={{ fontWeight: 700, color: "#14532d", fontSize: 14 }}>{pickup.patientName}</div>
             <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
