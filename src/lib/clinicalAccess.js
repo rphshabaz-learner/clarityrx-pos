@@ -9,6 +9,7 @@ export function normalizeClinicalRole(role) {
   if (value === "technician") return "technician";
   if (value === "student") return "student";
   if (value === "cashier") return "cashier";
+  if (value === "supervisor") return "supervisor";
   if (value === "store_manager") return "store_manager";
   if (value === "admin") return "admin";
   return value;

@@ -1,3 +1,5 @@
+import { DEFAULT_PRIVACY_NOTICE_VERSION, emptyCustomerConsent } from "./customerConsent";
+
 export const CUSTOMER_TYPE = {
   INDIVIDUAL: "individual",
   LOYALTY: "loyalty",
@@ -87,6 +89,9 @@ export function emptyCustomer(type = CUSTOMER_TYPE.INDIVIDUAL) {
     pointsHistory: [],
     purchaseHistory: [],
     facility: { name: "", beds: 0, contactName: "", billingContact: "" },
+    consent: emptyCustomerConsent(),
+    privacyNoticeVersion: DEFAULT_PRIVACY_NOTICE_VERSION,
+    accessRequest: { note: "", at: null },
     createdAt: stamp,
     updatedAt: stamp,
   };

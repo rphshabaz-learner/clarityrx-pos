@@ -7,6 +7,42 @@ export const POS_FRONT_STORE_ITEMS = [
   { sku: "FS-1006", barcode: "628451000106", name: "Vitamin D3 1000 IU", category: "Vitamins", stock: 31, price: 11.99 },
   { sku: "FS-1007", barcode: "628451000107", name: "Bandage Assorted Pack", category: "First aid", stock: 52, price: 5.99 },
   { sku: "FS-1008", barcode: "628451000108", name: "Saline Nasal Spray", category: "Cold and flu", stock: 17, price: 7.49 },
+  {
+    sku: "FS-2001",
+    barcode: "628451000201",
+    name: "Players Extra 649",
+    category: "Lottery",
+    stock: 200,
+    price: 5.0,
+    ageRestrictionClass: "lottery",
+  },
+  {
+    sku: "FS-2002",
+    barcode: "628451000202",
+    name: "Daily Grand",
+    category: "Lottery",
+    stock: 150,
+    price: 3.0,
+    ageRestrictionClass: "lottery",
+  },
+  {
+    sku: "FS-2003",
+    barcode: "628451000203",
+    name: "Nicotine Gum 2mg 20ct",
+    category: "Nicotine",
+    stock: 24,
+    price: 14.99,
+    ageRestrictionClass: "nicotine",
+  },
+  {
+    sku: "FS-2004",
+    barcode: "628451000204",
+    name: "Disposable Vape — Mint",
+    category: "Vaping",
+    stock: 12,
+    price: 12.99,
+    ageRestrictionClass: "vaping",
+  },
 ];
 
 export const POS_DEFAULT_CART = [];

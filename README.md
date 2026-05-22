@@ -27,6 +27,31 @@ npm start
 
 Opens at **http://localhost:3001**.
 
+## Desktop app (macOS)
+
+Install a **Desktop icon** that launches the till in Electron:
+
+```bash
+npm install
+npm run desktop:install   # creates "ClarityRx POS.app" on your Desktop
+```
+
+Double-click **ClarityRx POS** on the Desktop. The first launch runs `npm install` if needed, starts the dev server on port 3001, and opens the Electron window.
+
+To launch from the terminal without installing:
+
+```bash
+npm run desktop:pos
+```
+
+Scripts unset `ELECTRON_RUN_AS_NODE` so the real Electron window opens (some dev shells set that variable).
+
+Regenerate the dock/Desktop icon assets after changing `desktop-shell/icons/icon-1024.png`:
+
+```bash
+npm run desktop:icon
+```
+
 ## Environment
 
 | Variable | Default | Purpose |
@@ -36,6 +61,8 @@ Opens at **http://localhost:3001**.
 | `REACT_APP_API_BASE_URL` | (fallback) | Sets both URLs when `POS_*` are unset |
 | `REACT_APP_POS_STORE_ID` | `default-store` | Store id on transmit requests |
 | `REACT_APP_POS_PICKUP_SYNC` | (unset) | `1` = poll/Socket.IO pickup queue (optional) |
+| `REACT_APP_POS_DEVICE_TILL` | (unset) | Till number (1–12) for this physical register |
+| `REACT_APP_POS_DEVICE_TILL_LOCK` | (unset) | `1` = lock header till picker when `DEVICE_TILL` is set (default locked) |
 | `REACT_APP_POS_PHARMACY_AUDIT` | (unset) | `1` = forward audit to pharmacy `/audit/events` |
 | `REACT_APP_SECURELINK_ENABLED` | (unset) | `1` = integrated pinpad for Debit / Credit Card |
 | `REACT_APP_SECURELINK_MOCK` | (unset) | `1` = mock pinpad approval (dev only) |

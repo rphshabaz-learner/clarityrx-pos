@@ -36,6 +36,21 @@ export default function SelfCheckoutPaymentSection({ sc }) {
           />
         </div>
         <div style={{ marginBottom: 14 }}>
+          <FieldLabel>Kiosk idle timeout (seconds)</FieldLabel>
+          <input
+            className="crx-input"
+            type="number"
+            min={30}
+            max={600}
+            value={sc.config?.idleTimeoutSec ?? 120}
+            onChange={(e) => patch("idleTimeoutSec", Math.min(600, Math.max(30, Number(e.target.value) || 120)))}
+            style={{ width: "100%", marginTop: 6 }}
+          />
+          <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
+            Ends an active customer session after inactivity (PCI session control). Minimum 30s.
+          </p>
+        </div>
+        <div style={{ marginBottom: 14 }}>
           <FieldLabel>Payment prompt (customer screen)</FieldLabel>
           <textarea
             className="crx-input"

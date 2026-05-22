@@ -40,12 +40,37 @@ export function buildSkuDepartmentMap(products) {
   return map;
 }
 
+export function aggregateTaxComponents(sales, businessDate = todayBusinessDate()) {
+  const rows = salesForBusinessDate(sales, businessDate);
+  const totals = { GST: 0, HST: 0, PST: 0, QST: 0, totalTax: 0 };
+  rows.forEach((sale) => {
+    const breakdown = sale.taxBreakdown;
+    if (breakdown) {
+      totals.GST += Number(breakdown.GST) || 0;
+      totals.HST += Number(breakdown.HST) || 0;
+      totals.PST += Number(breakdown.PST) || 0;
+      totals.QST += Number(breakdown.QST) || 0;
+      totals.totalTax += Number(breakdown.totalTax) || 0;
+    } else {
+      totals.totalTax += Number(sale.tax) || 0;
+    }
+  });
+  return {
+    GST: Number(totals.GST.toFixed(2)),
+    HST: Number(totals.HST.toFixed(2)),
+    PST: Number(totals.PST.toFixed(2)),
+    QST: Number(totals.QST.toFixed(2)),
+    totalTax: Number(totals.totalTax.toFixed(2)),
+  };
+}
+
 export function aggregateDailySales(sales, businessDate = todayBusinessDate()) {
   const rows = salesForBusinessDate(sales, businessDate);
   const transactionCount = rows.length;
   const grossSales = sumMoney(rows, (r) => r.total);
   const discounts = sumMoney(rows, (r) => (Number(r.discount) || 0) + (Number(r.couponDiscount) || 0));
   const tax = sumMoney(rows, (r) => r.tax);
+  const taxComponents = aggregateTaxComponents(sales, businessDate);
   const itemsSold = rows.reduce((sum, row) => sum + (row.lines || []).reduce((s, line) => s + (Number(line.qty) || 0), 0), 0);
   const avgTicket = transactionCount > 0 ? grossSales / transactionCount : 0;
   return {
@@ -54,6 +79,7 @@ export function aggregateDailySales(sales, businessDate = todayBusinessDate()) {
     grossSales,
     discounts,
     tax,
+    taxComponents,
     netSales: grossSales - discounts,
     itemsSold,
     avgTicket,
@@ -113,6 +139,22 @@ export function aggregateTillBalancing(sales, businessDate = todayBusinessDate()
     }
   });
   return [...byTill.values()].sort((a, b) => a.tillNumber - b.tillNumber);
+}
+
+/** Roll up per-till balancing rows into store-wide totals for EOD / till reports. */
+export function sumTillBalanceRows(rows) {
+  const list = rows || [];
+  if (!list.length) return null;
+  return {
+    tillNumber: null,
+    tillLabel: "All tills",
+    transactions: list.reduce((s, row) => s + (Number(row.transactions) || 0), 0),
+    gross: list.reduce((s, row) => s + (Number(row.gross) || 0), 0),
+    cash: list.reduce((s, row) => s + (Number(row.cash) || 0), 0),
+    card: list.reduce((s, row) => s + (Number(row.card) || 0), 0),
+    other: list.reduce((s, row) => s + (Number(row.other) || 0), 0),
+    isCombined: true,
+  };
 }
 
 export function aggregateCashReconciliation(sales, businessDate = todayBusinessDate()) {
@@ -328,18 +370,27 @@ export function aggregateEmployeeSales(sales, businessDate = todayBusinessDate()
   return [...byCashier.values()].sort((a, b) => b.total - a.total);
 }
 
-export function buildEndOfDayReport(sales, shift, activities) {
-  const businessDate = shift?.businessDate || todayBusinessDate();
-  const daily = aggregateDailySales(sales, businessDate);
-  const cash = aggregateCashReconciliation(sales, businessDate);
-  const till = aggregateTillBalancing(sales, businessDate);
+export function buildEndOfDayReport(
+  sales,
+  tillShifts,
+  activities,
+  businessDate = todayBusinessDate()
+) {
+  const shifts = Array.isArray(tillShifts) ? tillShifts : tillShifts ? [tillShifts] : [];
+  const date = businessDate || shifts[0]?.businessDate || todayBusinessDate();
+  const daily = aggregateDailySales(sales, date);
+  const cash = aggregateCashReconciliation(sales, date);
+  const till = aggregateTillBalancing(sales, date);
+  const combined = sumTillBalanceRows(till);
   const posActivities = (activities || []).filter((row) => row.category === "pos").length;
   return {
-    businessDate,
-    shift,
+    businessDate: date,
+    tillShifts: shifts,
+    shift: shifts[0] || null,
     daily,
     cash,
     till,
+    combined,
     posActivityCount: posActivities,
     generatedAt: Date.now(),
   };
@@ -347,7 +398,7 @@ export function buildEndOfDayReport(sales, shift, activities) {
 
 export function buildCashierAudit(sales, shift, activities, cashierId) {
   const businessDate = shift?.businessDate || todayBusinessDate();
-  const id = cashierId || shift?.cashierId || "";
+  const id = cashierId || shift?.openedBy || "";
   const cashierSales = salesForBusinessDate(sales, businessDate).filter((row) => row.cashierId === id);
   const posEvents = (activities || []).filter(
     (row) => row.category === "pos" && String(row.detail?.tillNumber ?? "") !== ""

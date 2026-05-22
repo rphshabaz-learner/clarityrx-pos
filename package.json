@@ -2,6 +2,7 @@
   "name": "clarityrx-pos",
   "version": "0.1.0",
   "private": true,
+  "main": "desktop-shell/main.cjs",
   "description": "ClarityRx point-of-sale cashier app",
   "engines": {
     "node": "20.x"
@@ -23,7 +24,12 @@
     "prebuild": "node scripts/check-production-env.js && npm run build:css",
     "build": "react-scripts build",
     "build:css": "tailwindcss -i ./src/index.css -o ./src/index.build.css && node scripts/patch-tailwind-infinity.js",
-    "test": "react-scripts test"
+    "test": "react-scripts test",
+    "desktop:icon": "node scripts/generate-desktop-icon.mjs",
+    "desktop:install": "node scripts/install-desktop-launcher.mjs",
+    "postinstall": "node scripts/ensure-electron.mjs",
+    "desktop:pos": "node scripts/ensure-electron.mjs && concurrently -k -n web,electron -c blue,magenta \"npm start\" \"wait-on -t 120000 http://localhost:3001 && env -u ELECTRON_RUN_AS_NODE electron .\"",
+    "desktop": "env -u ELECTRON_RUN_AS_NODE electron ."
   },
   "eslintConfig": {
     "extends": ["react-app"]
@@ -33,6 +39,9 @@
     "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^35.7.5",
+    "wait-on": "^8.0.5",
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/postcss": "latest",
     "@types/react": "latest",

@@ -22,7 +22,9 @@ import {
   syncPosPickups,
 } from "../services/posApi";
 
-export function useRxIntegration({ onNotify, logActivity } = {}) {
+import { logAccessEvent } from "../lib/access/posAccessLog";
+
+export function useRxIntegration({ onNotify, logActivity, accessLogContext } = {}) {
   const { accessToken } = useAuth();
   const { kroll, health, pickupSyncOn, refreshHealth } = usePosHeaderStatus();
   const { pickups, isLoading: pickupsLoading, reload: reloadPickups } = usePosPickups();
@@ -218,6 +220,19 @@ export function useRxIntegration({ onNotify, logActivity } = {}) {
           paymentId: row.id,
           invoiceNumber: row.invoiceNumber,
         });
+        void logAccessEvent(
+          logActivity,
+          "rx_transaction",
+          "Rx payment posted to Kroll",
+          {
+            rxLinked: true,
+            paymentId: row.id,
+            invoiceNumber: row.invoiceNumber,
+            pickupId: row.pickupId,
+            rxCopay: row.rxCopay,
+          },
+          accessLogContext
+        );
         onNotify?.("Rx payment posted to Kroll.", "success");
         await refresh();
       } catch (cause) {
@@ -231,7 +246,7 @@ export function useRxIntegration({ onNotify, logActivity } = {}) {
         setBusy(false);
       }
     },
-    [accessToken, logActivity, onNotify, refresh]
+    [accessLogContext, accessToken, logActivity, onNotify, refresh]
   );
 
   const postAllPendingPayments = useCallback(async () => {

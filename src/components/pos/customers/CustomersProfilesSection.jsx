@@ -4,6 +4,8 @@ import {
   CUSTOMER_TYPE_OPTIONS,
   customerDisplayName,
 } from "../../../lib/customers/customerTypes";
+import { canViewSensitiveCustomerProfile } from "../../../lib/privacy/dataMinimization";
+import { useRoleAccess } from "../../../RoleAccessContext";
 import {
   CustomerListSidebar,
   CustomerStatusBadge,
@@ -27,6 +29,9 @@ export default function CustomersProfilesSection({
   onRemoveCustomer,
   onAttachToTill,
 }) {
+  const { activeRole } = useRoleAccess();
+  const showSensitiveProfile = canViewSensitiveCustomerProfile(activeRole);
+
   const update = (patch) => {
     if (!selectedCustomer) return;
     onSaveCustomer({ ...selectedCustomer, ...patch });
@@ -41,7 +46,11 @@ export default function CustomersProfilesSection({
     <div>
       <SectionIntro
         title="Customer profiles"
-        description="Search and maintain individual shoppers, loyalty members, store charge accounts, and facility billing contacts."
+        description={
+          showSensitiveProfile
+            ? "Search and maintain individual shoppers, loyalty members, store charge accounts, and facility billing contacts."
+            : "Collect only what you need for this sale: account #, name, and phone. Email, address, and date of birth require manager or pharmacist access."
+        }
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) minmax(0, 2fr)", gap: 16 }}>
@@ -163,34 +172,38 @@ export default function CustomersProfilesSection({
                     style={{ marginTop: 6, width: "100%" }}
                   />
                 </div>
-                <div>
-                  <FieldLabel>Email</FieldLabel>
-                  <input
-                    className="crx-input"
-                    value={selectedCustomer.profile?.email || ""}
-                    onChange={(e) => updateProfile({ email: e.target.value })}
-                    style={{ marginTop: 6, width: "100%" }}
-                  />
-                </div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <FieldLabel>Address</FieldLabel>
-                  <input
-                    className="crx-input"
-                    value={selectedCustomer.profile?.address || ""}
-                    onChange={(e) => updateProfile({ address: e.target.value })}
-                    style={{ marginTop: 6, width: "100%" }}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>Date of birth</FieldLabel>
-                  <input
-                    className="crx-input"
-                    type="date"
-                    value={selectedCustomer.profile?.dateOfBirth || ""}
-                    onChange={(e) => updateProfile({ dateOfBirth: e.target.value })}
-                    style={{ marginTop: 6, width: "100%" }}
-                  />
-                </div>
+                {showSensitiveProfile ? (
+                  <>
+                    <div>
+                      <FieldLabel>Email</FieldLabel>
+                      <input
+                        className="crx-input"
+                        value={selectedCustomer.profile?.email || ""}
+                        onChange={(e) => updateProfile({ email: e.target.value })}
+                        style={{ marginTop: 6, width: "100%" }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <FieldLabel>Address</FieldLabel>
+                      <input
+                        className="crx-input"
+                        value={selectedCustomer.profile?.address || ""}
+                        onChange={(e) => updateProfile({ address: e.target.value })}
+                        style={{ marginTop: 6, width: "100%" }}
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel>Date of birth</FieldLabel>
+                      <input
+                        className="crx-input"
+                        type="date"
+                        value={selectedCustomer.profile?.dateOfBirth || ""}
+                        onChange={(e) => updateProfile({ dateOfBirth: e.target.value })}
+                        style={{ marginTop: 6, width: "100%" }}
+                      />
+                    </div>
+                  </>
+                ) : null}
               </div>
 
               <button type="button" className="btn-primary" disabled={busy} onClick={() => onSaveCustomer(selectedCustomer)}>

@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { DataTable, SectionIntro, StatChip, StatRow, SubTabs, formatMoney, formatTs } from "./ReportsShared";
+import {
+  DataTable,
+  SectionIntro,
+  StatChip,
+  StatRow,
+  SubTabs,
+  formatMoney,
+  formatTs,
+  tillTableColumns,
+} from "./ReportsShared";
 
 const TABS = [
   { id: "till", label: "Till balancing" },
@@ -10,7 +19,15 @@ const TABS = [
 
 export default function ReportsCashSection({ reports }) {
   const [tab, setTab] = useState("till");
-  const { tillBalancing, cashReconciliation, endOfDay, cashierAudit, businessDateLabel } = reports;
+  const {
+    tillBalancing,
+    tillBalancingCombined,
+    cashReconciliation,
+    endOfDay,
+    cashierAudit,
+    businessDateLabel,
+  } = reports;
+  const tillColumns = tillTableColumns({ includeTender: true });
 
   return (
     <div>
@@ -22,15 +39,9 @@ export default function ReportsCashSection({ reports }) {
 
       {tab === "till" ? (
         <DataTable
-          columns={[
-            { key: "tillNumber", label: "Till" },
-            { key: "transactions", label: "Txns" },
-            { key: "gross", label: "Gross", render: (row) => formatMoney(row.gross) },
-            { key: "cash", label: "Cash", render: (row) => formatMoney(row.cash) },
-            { key: "card", label: "Card", render: (row) => formatMoney(row.card) },
-            { key: "other", label: "Other", render: (row) => formatMoney(row.other) },
-          ]}
+          columns={tillColumns}
           rows={tillBalancing}
+          summaryRow={tillBalancingCombined}
           emptyMessage="No till activity for this date."
         />
       ) : null}
@@ -54,24 +65,47 @@ export default function ReportsCashSection({ reports }) {
       {tab === "eod" ? (
         <>
           <StatRow>
-            <StatChip label="Gross sales" value={formatMoney(endOfDay.daily.grossSales)} tone="primary" />
-            <StatChip label="Transactions" value={String(endOfDay.daily.transactionCount)} />
+            <StatChip
+              label="All tills — gross"
+              value={formatMoney(endOfDay.combined?.gross ?? endOfDay.daily.grossSales)}
+              tone="primary"
+            />
+            <StatChip
+              label="All tills — txns"
+              value={String(endOfDay.combined?.transactions ?? endOfDay.daily.transactionCount)}
+            />
             <StatChip label="Cash expected" value={formatMoney(endOfDay.cash.expectedDrawer)} />
             <StatChip label="POS events" value={String(endOfDay.posActivityCount)} />
           </StatRow>
+          <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5, marginBottom: 12 }}>
+            Per-till totals for {businessDateLabel}. The summary row matches all tills combined.
+          </p>
           <DataTable
-            columns={[
-              { key: "tillNumber", label: "Till" },
-              { key: "transactions", label: "Txns" },
-              { key: "gross", label: "Gross", render: (row) => formatMoney(row.gross) },
-            ]}
+            columns={tillColumns}
             rows={endOfDay.till}
-            emptyMessage="No tills to close."
+            summaryRow={endOfDay.combined}
+            emptyMessage="No till activity for this date."
           />
-          {endOfDay.shift ? (
-            <p style={{ fontSize: 12, color: "#6b7280", marginTop: 12 }}>
-              Shift {endOfDay.shift.id} · {endOfDay.shift.status} · opened {formatTs(endOfDay.shift.openedAt)}
-            </p>
+          {endOfDay.tillShifts?.length ? (
+            <DataTable
+              columns={[
+                { key: "tillNumber", label: "Till" },
+                { key: "id", label: "Shift" },
+                { key: "status", label: "Status" },
+                {
+                  key: "openedAt",
+                  label: "Opened",
+                  render: (row) => formatTs(row.openedAt),
+                },
+                {
+                  key: "closedAt",
+                  label: "Closed",
+                  render: (row) => (row.closedAt ? formatTs(row.closedAt) : "—"),
+                },
+              ]}
+              rows={endOfDay.tillShifts}
+              emptyMessage="No till shifts recorded for this date."
+            />
           ) : null}
         </>
       ) : null}

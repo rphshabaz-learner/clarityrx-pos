@@ -1,17 +1,38 @@
 import {
+  applyConsentChange,
+  CONSENT_CHANNEL,
+  DEFAULT_PRIVACY_NOTICE_VERSION,
+} from "./customerConsent";
+import {
   CUSTOMER_STATUS,
   CUSTOMER_TYPE,
   generateCustomerId,
   generateCustomerLineId,
   generateCustomerNoteId,
+  emptyCustomer,
 } from "./customerTypes";
 
 const now = new Date();
 const daysAgo = (n) => new Date(now.getTime() - n * 86400000).toISOString();
 
+function withSeedConsent(customer, grants) {
+  let row = {
+    ...emptyCustomer(customer.type),
+    ...customer,
+    privacyNoticeVersion: DEFAULT_PRIVACY_NOTICE_VERSION,
+  };
+  delete row.id;
+  row.id = customer.id;
+  for (const [channel, granted] of Object.entries(grants)) {
+    row = applyConsentChange(row, channel, granted, { source: "seed" });
+  }
+  return row;
+}
+
 export function buildSeedCustomers() {
   const stamp = now.toISOString();
   return [
+    withSeedConsent(
     {
       id: generateCustomerId(),
       accountNumber: "C-10042",
@@ -69,6 +90,14 @@ export function buildSeedCustomers() {
       updatedAt: stamp,
     },
     {
+      [CONSENT_CHANNEL.LOYALTY]: true,
+      [CONSENT_CHANNEL.MARKETING]: true,
+      [CONSENT_CHANNEL.SMS]: true,
+      [CONSENT_CHANNEL.EMAIL]: true,
+      [CONSENT_CHANNEL.E_RECEIPTS]: true,
+    }),
+    withSeedConsent(
+    {
       id: generateCustomerId(),
       accountNumber: "C-20018",
       type: CUSTOMER_TYPE.STORE_CHARGE,
@@ -117,6 +146,14 @@ export function buildSeedCustomers() {
       createdAt: stamp,
       updatedAt: stamp,
     },
+    {
+      [CONSENT_CHANNEL.LOYALTY]: false,
+      [CONSENT_CHANNEL.MARKETING]: false,
+      [CONSENT_CHANNEL.SMS]: false,
+      [CONSENT_CHANNEL.EMAIL]: true,
+      [CONSENT_CHANNEL.E_RECEIPTS]: true,
+    }),
+    withSeedConsent(
     {
       id: generateCustomerId(),
       accountNumber: "FAC-SUNRISE",
@@ -170,6 +207,13 @@ export function buildSeedCustomers() {
       updatedAt: stamp,
     },
     {
+      [CONSENT_CHANNEL.MARKETING]: false,
+      [CONSENT_CHANNEL.SMS]: false,
+      [CONSENT_CHANNEL.EMAIL]: true,
+      [CONSENT_CHANNEL.E_RECEIPTS]: false,
+    }),
+    withSeedConsent(
+    {
       id: generateCustomerId(),
       accountNumber: "LTC-NORTH-09",
       type: CUSTOMER_TYPE.LTC,
@@ -222,5 +266,11 @@ export function buildSeedCustomers() {
       createdAt: stamp,
       updatedAt: stamp,
     },
+    {
+      [CONSENT_CHANNEL.MARKETING]: false,
+      [CONSENT_CHANNEL.SMS]: false,
+      [CONSENT_CHANNEL.EMAIL]: true,
+      [CONSENT_CHANNEL.E_RECEIPTS]: false,
+    }),
   ];
 }

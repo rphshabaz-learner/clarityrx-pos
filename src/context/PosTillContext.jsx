@@ -1,37 +1,71 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
-import { closeActiveShift, ensureOpenShift, getActiveShift } from "../lib/posShift";
+import { closeActiveShift, getActiveShift, openTillShift } from "../lib/posShift";
 import { clearSuspendedSale, loadSuspendedSale } from "../lib/posSuspendedSale";
-import { loadSelectedTillNumber, POS_TILL_OPTIONS, saveSelectedTillNumber } from "../lib/posTill";
+import {
+  getDeviceTillBindingSync,
+  hydrateDeviceTillBinding,
+  isDeviceTillLocked,
+  resolveInitialTillNumber,
+} from "../lib/posDeviceTill";
+import { logImmutableAudit } from "../lib/audit/posImmutableAudit";
+import { POS_TILL_OPTIONS, saveSelectedTillNumber } from "../lib/posTill";
 
 const PosTillContext = createContext(null);
 
 export function PosTillProvider({ children }) {
   const { user } = useAuth();
-  const [selectedTillNumber, setSelectedTillNumberState] = useState(loadSelectedTillNumber);
-  const [shift, setShift] = useState(() => getActiveShift());
-  const [suspendedSale, setSuspendedSale] = useState(() => loadSuspendedSale());
+  const [deviceTillBinding, setDeviceTillBinding] = useState(getDeviceTillBindingSync);
+  const [selectedTillNumber, setSelectedTillNumberState] = useState(resolveInitialTillNumber);
+  const [shift, setShift] = useState(() => getActiveShift(resolveInitialTillNumber()));
+  const [suspendedSale, setSuspendedSale] = useState(() => loadSuspendedSale(resolveInitialTillNumber()));
   const [lastCompletedSale, setLastCompletedSale] = useState(null);
   const [managerOverrideActive, setManagerOverrideActive] = useState(false);
   const [headerAlerts, setHeaderAlerts] = useState([]);
   const tillActionsRef = useRef({});
 
   useEffect(() => {
-    saveSelectedTillNumber(selectedTillNumber);
+    let cancelled = false;
+    hydrateDeviceTillBinding().then((binding) => {
+      if (cancelled || !binding) return;
+      setDeviceTillBinding(binding);
+      setSelectedTillNumberState(binding.tillNumber);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDeviceTillLocked(deviceTillBinding)) {
+      saveSelectedTillNumber(selectedTillNumber);
+    }
+  }, [selectedTillNumber, deviceTillBinding]);
+
+  useEffect(() => {
+    setShift(getActiveShift(selectedTillNumber));
   }, [selectedTillNumber]);
 
   useEffect(() => {
-    const nextShift = ensureOpenShift({
-      cashierId: user?.id || user?.username || "",
-      tillNumber: selectedTillNumber,
-    });
-    setShift(nextShift);
-  }, [selectedTillNumber, user?.id, user?.username]);
+    setSuspendedSale(loadSuspendedSale(selectedTillNumber));
+  }, [selectedTillNumber]);
 
-  const setSelectedTillNumber = useCallback((value) => {
-    const parsed = Number(value);
-    if (!POS_TILL_OPTIONS.includes(parsed)) return;
-    setSelectedTillNumberState(parsed);
+  const operatorId = user?.id || user?.username || "";
+
+  const setSelectedTillNumber = useCallback(
+    (value) => {
+      if (isDeviceTillLocked(deviceTillBinding)) return;
+      const parsed = Number(value);
+      if (!POS_TILL_OPTIONS.includes(parsed)) return;
+      setSelectedTillNumberState(parsed);
+    },
+    [deviceTillBinding]
+  );
+
+  const applyDeviceTillBinding = useCallback((binding) => {
+    const normalized = binding || getDeviceTillBindingSync();
+    setDeviceTillBinding(normalized);
+    setSelectedTillNumberState(normalized.tillNumber);
   }, []);
 
   const registerTillActions = useCallback((handlers) => {
@@ -60,19 +94,41 @@ export function PosTillProvider({ children }) {
   }, []);
 
   const refreshSuspendedSale = useCallback(() => {
-    setSuspendedSale(loadSuspendedSale());
-  }, []);
+    setSuspendedSale(loadSuspendedSale(selectedTillNumber));
+  }, [selectedTillNumber]);
 
   const clearSuspended = useCallback(() => {
-    clearSuspendedSale();
+    clearSuspendedSale(selectedTillNumber);
     setSuspendedSale(null);
-  }, []);
+  }, [selectedTillNumber]);
+
+  const openShift = useCallback(() => {
+    const prior = getActiveShift(selectedTillNumber);
+    const opened = openTillShift({
+      tillNumber: selectedTillNumber,
+      openedBy: operatorId,
+    });
+    if (opened?.status === "open" && (!prior || prior.id !== opened.id)) {
+      void logImmutableAudit(null, {
+        user: operatorId,
+        action: "till_open",
+        terminal: selectedTillNumber,
+        newValue: opened.id,
+        detail: {
+          openedBy: opened.openedBy,
+          businessDate: opened.businessDate,
+        },
+      });
+    }
+    setShift(opened);
+    return opened;
+  }, [operatorId, selectedTillNumber]);
 
   const closeShift = useCallback(() => {
-    const closed = closeActiveShift();
+    const closed = closeActiveShift(selectedTillNumber, { closedBy: operatorId });
     setShift(closed);
     return closed;
-  }, []);
+  }, [operatorId, selectedTillNumber]);
 
   const activateManagerOverride = useCallback((minutes = 5) => {
     setManagerOverrideActive(true);
@@ -84,8 +140,13 @@ export function PosTillProvider({ children }) {
     () => ({
       selectedTillNumber,
       setSelectedTillNumber,
+      deviceTillBinding,
+      deviceTillLocked: isDeviceTillLocked(deviceTillBinding),
+      applyDeviceTillBinding,
       shift,
+      openShift,
       closeShift,
+      isShiftOpen: shift?.status === "open",
       suspendedSale,
       refreshSuspendedSale,
       clearSuspended,
@@ -102,7 +163,10 @@ export function PosTillProvider({ children }) {
     [
       selectedTillNumber,
       setSelectedTillNumber,
+      deviceTillBinding,
+      applyDeviceTillBinding,
       shift,
+      openShift,
       closeShift,
       suspendedSale,
       refreshSuspendedSale,

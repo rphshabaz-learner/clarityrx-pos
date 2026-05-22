@@ -12,9 +12,10 @@
 import { scopedIndexedDbName } from "../session/scopedStorage";
 
 const BASE_DB_NAME = "clarityrx-local-v1";
-const DB_VERSION = 13;
+const DB_VERSION = 15;
 const STORE_KV = "kv";
 const STORE_ACTIVITIES = "activities";
+const STORE_IMMUTABLE_AUDIT = "immutable_audit";
 const STORE_DPD_PRODUCTS = "dpd_products";
 const STORE_INVENTORY_ITEMS = "inventory_items";
 const STORE_RX_WORK_ITEMS = "rx_work_items";
@@ -29,6 +30,7 @@ const STORE_POS_PROMOTIONS = "pos_promotions";
 const STORE_POS_CUSTOMERS = "pos_customers";
 const STORE_POS_FRONT_STORE_PRODUCTS = "pos_front_store_products";
 const STORE_POS_COMPLETED_SALES = "pos_completed_sales";
+const STORE_POS_GIFT_CARDS = "pos_gift_cards";
 
 function txDone(tx) {
   return new Promise((resolve, reject) => {
@@ -62,6 +64,12 @@ export function openClarityDb() {
       }
       if (!db.objectStoreNames.contains(STORE_ACTIVITIES)) {
         db.createObjectStore(STORE_ACTIVITIES, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(STORE_IMMUTABLE_AUDIT)) {
+        const store = db.createObjectStore(STORE_IMMUTABLE_AUDIT, { keyPath: "id" });
+        store.createIndex("timestamp", "timestamp", { unique: false });
+        store.createIndex("action", "action", { unique: false });
+        store.createIndex("user", "user", { unique: false });
       }
       if (!db.objectStoreNames.contains(STORE_DPD_PRODUCTS)) {
         const store = db.createObjectStore(STORE_DPD_PRODUCTS, { keyPath: "drugCode" });
@@ -159,6 +167,12 @@ export function openClarityDb() {
         store.createIndex("tillNumber", "tillNumber", { unique: false });
         store.createIndex("cashierId", "cashierId", { unique: false });
         store.createIndex("invoiceNumber", "invoiceNumber", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_POS_GIFT_CARDS)) {
+        const store = db.createObjectStore(STORE_POS_GIFT_CARDS, { keyPath: "id" });
+        store.createIndex("cardNumber", "cardNumber", { unique: true });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("updatedAt", "updatedAt", { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -836,6 +850,28 @@ export async function deletePosCustomer(id) {
   await txDone(tx);
 }
 
+export async function listPosGiftCards() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_GIFT_CARDS], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_POS_GIFT_CARDS).getAll());
+  await txDone(tx);
+  return all.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+}
+
+export async function savePosGiftCard(card) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_GIFT_CARDS], "readwrite");
+  tx.objectStore(STORE_POS_GIFT_CARDS).put(card);
+  await txDone(tx);
+}
+
+export async function deletePosGiftCard(id) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_POS_GIFT_CARDS], "readwrite");
+  tx.objectStore(STORE_POS_GIFT_CARDS).delete(id);
+  await txDone(tx);
+}
+
 export async function listFrontStoreProducts() {
   const db = await getClarityDb();
   const tx = db.transaction([STORE_POS_FRONT_STORE_PRODUCTS], "readonly");
@@ -865,12 +901,22 @@ export async function getFrontStoreProductBySku(sku) {
   return rows.find((row) => String(row.sku || "").trim().toLowerCase() === normalized) || null;
 }
 
-export async function appendCompletedSale(sale) {
+export async function appendCompletedSale(sale, { skipInvoiceUniquenessCheck = false } = {}) {
+  if (!skipInvoiceUniquenessCheck && sale?.invoiceNumber) {
+    const { assertInvoiceNumberAvailable } = await import("./invoice/invoiceNumbering");
+    const existing = await listCompletedSales(0);
+    assertInvoiceNumberAvailable(existing, sale);
+  }
   const db = await getClarityDb();
   const tx = db.transaction([STORE_POS_COMPLETED_SALES], "readwrite");
   tx.objectStore(STORE_POS_COMPLETED_SALES).put(sale);
   await txDone(tx);
   await completedSalesTrimIfNeeded();
+}
+
+/** Update an existing completed sale row (e.g. receipt archive hardening). */
+export async function saveCompletedSale(sale) {
+  return appendCompletedSale(sale, { skipInvoiceUniquenessCheck: true });
 }
 
 async function completedSalesTrimIfNeeded() {
@@ -897,4 +943,98 @@ export async function listCompletedSales(limit = 5000) {
   await txDone(tx);
   all.sort((a, b) => (b.chargedAt || 0) - (a.chargedAt || 0));
   return limit > 0 ? all.slice(0, limit) : all;
+}
+
+/** Delete completed sale rows with chargedAt before cutoffMs (local cache retention). */
+export async function purgeCompletedSalesBefore(cutoffMs, { auditDeletedSales = false } = {}) {
+  const all = await listCompletedSales(0);
+  const drop = all.filter((row) => (row.chargedAt || 0) < cutoffMs);
+  if (!drop.length) return 0;
+  if (auditDeletedSales) {
+    const { logImmutableAudit } = await import("./audit/posImmutableAudit");
+    for (const sale of drop) {
+      await logImmutableAudit(null, {
+        user: "system",
+        action: "sale_deleted",
+        terminal: sale.tillNumber ?? null,
+        oldValue: sale.invoiceNumber ?? sale.id ?? null,
+        newValue: null,
+        reason: "retention_purge",
+        detail: {
+          chargedAt: sale.chargedAt,
+          total: sale.total,
+          payMethod: sale.payMethod,
+        },
+      });
+    }
+  }
+  const db = await getClarityDb();
+  const txw = db.transaction([STORE_POS_COMPLETED_SALES], "readwrite");
+  const st = txw.objectStore(STORE_POS_COMPLETED_SALES);
+  drop.forEach((row) => st.delete(row.id));
+  await txDone(txw);
+  return drop.length;
+}
+
+/** Delete audit activity rows with ts before cutoffMs. */
+export async function purgeActivitiesBefore(cutoffMs) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_ACTIVITIES], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_ACTIVITIES).getAll());
+  await txDone(tx);
+  const drop = all.filter((row) => (row.ts || 0) < cutoffMs);
+  if (!drop.length) return 0;
+  const txw = db.transaction([STORE_ACTIVITIES], "readwrite");
+  const st = txw.objectStore(STORE_ACTIVITIES);
+  drop.forEach((row) => st.delete(row.id));
+  await txDone(txw);
+  return drop.length;
+}
+
+/** Append-only immutable audit row (no updates). */
+export async function immutableAuditAppend(row) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_IMMUTABLE_AUDIT], "readwrite");
+  tx.objectStore(STORE_IMMUTABLE_AUDIT).put(row);
+  await txDone(tx);
+  await immutableAuditTrimIfNeeded();
+}
+
+async function immutableAuditTrimIfNeeded() {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_IMMUTABLE_AUDIT], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_IMMUTABLE_AUDIT).getAll());
+  await txDone(tx);
+  const MAX = 8000;
+  const KEEP = 6000;
+  if (all.length <= MAX) return;
+  all.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  const drop = all.slice(0, all.length - KEEP);
+  const txw = db.transaction([STORE_IMMUTABLE_AUDIT], "readwrite");
+  const st = txw.objectStore(STORE_IMMUTABLE_AUDIT);
+  drop.forEach((r) => st.delete(r.id));
+  await txDone(txw);
+}
+
+/** Newest first */
+export async function immutableAuditList(limit = 200) {
+  const db = await getClarityDb();
+  const tx = db.transaction([STORE_IMMUTABLE_AUDIT], "readonly");
+  const all = await promisifyRequest(tx.objectStore(STORE_IMMUTABLE_AUDIT).getAll());
+  await txDone(tx);
+  all.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  return limit > 0 ? all.slice(0, limit) : all;
+}
+
+/** Delete immutable audit rows with timestamp before cutoffMs (retention purge). */
+export async function purgeImmutableAuditBefore(cutoffMs) {
+  const all = await immutableAuditList(0);
+  const drop = all.filter((row) => (row.timestamp || 0) < cutoffMs);
+  if (!drop.length) return 0;
+  const db = await getClarityDb();
+  const txw = db.transaction([STORE_IMMUTABLE_AUDIT], "readwrite");
+  const st = txw.objectStore(STORE_IMMUTABLE_AUDIT);
+  drop.forEach((row) => st.delete(row.id));
+  await txDone(txw);
+  return drop.length;
 }

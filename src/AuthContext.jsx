@@ -8,6 +8,7 @@ import {
   resolveEffectiveIdleTimeoutMinutes,
   saveSessionPreferences,
 } from "./session/sessionPreferences";
+import { logImmutableAudit } from "./lib/audit/posImmutableAudit";
 import { enterpriseAuthStore } from "./stores/authStore";
 import { workstationLockStore } from "./stores/workstationLockStore";
 
@@ -152,6 +153,18 @@ export function AuthProvider({ children }) {
       setSessionWarning(false);
       lastActivityRef.current = Date.now();
       sessionEndedRef.current = false;
+      if (payload.user) {
+        void logImmutableAudit(null, {
+          user: payload.user.id || payload.user.username,
+          action: "user_login",
+          terminal: nextSessionContext?.terminalId ?? null,
+          newValue: payload.user.username || null,
+          detail: {
+            role: payload.user.role,
+            sessionId: nextSessionContext?.sessionId,
+          },
+        });
+      }
     },
     [persistAuthState, sessionContext]
   );
@@ -213,11 +226,20 @@ export function AuthProvider({ children }) {
       } catch {
         // Ignore logout network failures during local session cleanup.
       } finally {
+        const operatorId = user?.id || user?.username;
+        if (operatorId) {
+          void logImmutableAudit(null, {
+            user: operatorId,
+            action: "user_logout",
+            terminal: sessionContext?.terminalId ?? null,
+            detail: { sessionId: sessionContext?.sessionId },
+          });
+        }
         clearAuthState();
         if (!silent) setError("");
       }
     },
-    [accessToken, clearAuthState]
+    [accessToken, clearAuthState, sessionContext, user]
   );
 
   const refreshSession = useCallback(async () => {

@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
 import { appendCompletedSale, listPosCustomers } from "../lib/clarityIndexedDb";
 import { searchPosCustomers } from "../lib/customers/customerSearch";
 import { customerDisplayName } from "../lib/customers/customerTypes";
 import { searchSellableProducts } from "../lib/inventory/frontStoreCatalog";
 import { loadPosDemographicConfig } from "../lib/posFavorites";
+import { computePosSaleTaxTotals } from "../lib/tax/computePosSaleTax";
+import { loadPosTaxConfig } from "../lib/tax/posTaxConfig";
 import { computeLineTotal, loyaltyRedemptionAmount } from "../lib/posSalesRegister";
 import { isCardPayMethod } from "../lib/posPayments";
+import { sanitizeCardPaymentForStorage } from "../lib/receipt/paymentReceiptRules";
 import { buildCompletedSaleSnapshot } from "../lib/reporting/saleSnapshot";
 import {
   isSelfCheckoutFeatureEnabled,
@@ -20,10 +23,16 @@ import {
   RECEIPT_DELIVERY,
   SELF_CHECKOUT_STEPS,
 } from "../lib/selfCheckout/selfCheckoutTypes";
-import { getActiveShift } from "../lib/posShift";
+import { getActiveShift, isShiftOpenForTill, openTillShift } from "../lib/posShift";
 import { isSecurelinkEnabled, resolveSecurelinkTerminalId } from "../lib/securelinkConfig";
+import { runAuditedCardPayment, logCardPaymentActivity } from "../lib/pci/cardPaymentAudit";
 import { useSecurelinkPayment } from "./useSecurelinkPayment";
 import { completePosSale, transmitInventoryAdjustments } from "../services/posApi";
+import {
+  cartAgeRestrictionClasses,
+  isAgeRestrictedItem,
+} from "../lib/compliance/ageRestrictedProducts";
+import { loadPosAgeComplianceConfig } from "../lib/compliance/posAgeComplianceConfig";
 
 function catalogLineToCartLine(item) {
   return {
@@ -33,6 +42,7 @@ function catalogLineToCartLine(item) {
     price: Number(item.price) || 0,
     qty: 1,
     lineDiscount: 0,
+    ageRestrictionClass: item.ageRestrictionClass,
   };
 }
 
@@ -57,11 +67,13 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
   const [cardPaymentStatus, setCardPaymentStatus] = useState(null);
   const [loyaltyQuery, setLoyaltyQuery] = useState("");
   const [scanBuffer, setScanBuffer] = useState("");
+  const kioskLastActivityRef = useRef(Date.now());
 
   const featureEnabled = isSelfCheckoutFeatureEnabled();
   const securelinkActive = isSecurelinkEnabled();
   const tillNumber = resolveSelfCheckoutTillNumber(config);
   const demographicConfig = useMemo(() => loadPosDemographicConfig(), []);
+  const taxConfig = useMemo(() => loadPosTaxConfig(), []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -123,20 +135,28 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
   }, [customers, loyaltyQuery]);
 
   const kioskTotals = useMemo(() => {
-    if (!kiosk) return { subtotal: 0, tax: 0, total: 0, loyaltyRedemption: 0 };
+    if (!kiosk) {
+      return { subtotal: 0, tax: 0, total: 0, loyaltyRedemption: 0, taxBreakdown: null };
+    }
     const subtotal = (kiosk.cart || []).reduce((sum, line) => sum + computeLineTotal(line), 0);
     const loyaltyRedemption = loyaltyRedemptionAmount(kiosk.loyaltyPointsRedeemed, subtotal);
     const taxable = Math.max(0, subtotal - loyaltyRedemption);
-    const taxRate = Number(demographicConfig.taxRate) || 0;
-    const tax = taxable * taxRate;
-    const total = taxable + tax;
+    const saleTax = computePosSaleTaxTotals({
+      cart: kiosk.cart,
+      computeLineTotal,
+      taxableSubtotal: taxable,
+      taxExempt: false,
+      taxConfig,
+      demographicConfig,
+    });
     return {
       subtotal,
       loyaltyRedemption,
-      tax,
-      total,
+      tax: saleTax.tax,
+      taxBreakdown: saleTax.taxBreakdownStored,
+      total: saleTax.total,
     };
-  }, [demographicConfig.taxRate, kiosk]);
+  }, [demographicConfig, kiosk, taxConfig]);
 
   const startKiosk = useCallback(() => {
     if (!featureEnabled) {
@@ -150,15 +170,57 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
     setScanBuffer("");
     setLoyaltyQuery("");
     setCardPaymentStatus(null);
+    if (!isShiftOpenForTill(tillNumber)) {
+      openTillShift({ tillNumber, openedBy: "self-checkout" });
+    }
     logActivity?.("pos", "Self-checkout session started", { tillNumber });
   }, [config?.defaultReceiptDelivery, featureEnabled, logActivity, onNotify, tillNumber]);
 
-  const endKiosk = useCallback(() => {
-    setKiosk(null);
-    setScanBuffer("");
-    setCardPaymentStatus(null);
-    void cancelActivePayment(accessToken);
-  }, [accessToken, cancelActivePayment]);
+  const endKiosk = useCallback(
+    (reason = "manual") => {
+      setKiosk(null);
+      setScanBuffer("");
+      setCardPaymentStatus(null);
+      void cancelActivePayment(accessToken);
+      if (reason === "idle") {
+        logActivity?.("pos", "Self-checkout session ended (idle)", {
+          tillNumber,
+          idleTimeoutSec: Math.max(30, Number(config?.idleTimeoutSec) || 120),
+        });
+      }
+    },
+    [accessToken, cancelActivePayment, config?.idleTimeoutSec, logActivity, tillNumber]
+  );
+
+  useEffect(() => {
+    if (kiosk) {
+      kioskLastActivityRef.current = Date.now();
+    }
+  }, [kiosk?.id]);
+
+  useEffect(() => {
+    if (!kiosk || kiosk.step === SELF_CHECKOUT_STEPS.DONE) return undefined;
+
+    const timeoutSec = Math.max(30, Number(config?.idleTimeoutSec) || 120);
+    const bump = () => {
+      kioskLastActivityRef.current = Date.now();
+    };
+    const events = ["pointerdown", "keydown", "touchstart"];
+    events.forEach((name) => window.addEventListener(name, bump, { passive: true }));
+
+    const intervalId = window.setInterval(() => {
+      const idleMs = Date.now() - kioskLastActivityRef.current;
+      if (idleMs >= timeoutSec * 1000) {
+        onNotify?.("Session ended due to inactivity.", "info");
+        endKiosk("idle");
+      }
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      events.forEach((name) => window.removeEventListener(name, bump));
+    };
+  }, [config?.idleTimeoutSec, endKiosk, kiosk, onNotify]);
 
   const setKioskStep = useCallback((step) => {
     setKiosk((prev) => (prev ? { ...prev, step } : prev));
@@ -172,6 +234,18 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
       const item = hits[0];
       if (!item) {
         onNotify?.(`No product found for “${query}”.`, "warning");
+        return false;
+      }
+      const ageConfig = loadPosAgeComplianceConfig();
+      if (
+        ageConfig.enforcementEnabled &&
+        ageConfig.blockSelfCheckout &&
+        isAgeRestrictedItem(item)
+      ) {
+        onNotify?.(
+          "Age-restricted items (nicotine, lottery, alcohol, etc.) must be sold at the staffed till.",
+          "warning"
+        );
         return false;
       }
       setKiosk((prev) => {
@@ -244,8 +318,24 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
       onNotify?.("Cart is empty.", "warning");
       return false;
     }
+    const ageConfig = loadPosAgeComplianceConfig();
+    if (
+      ageConfig.enforcementEnabled &&
+      ageConfig.blockSelfCheckout &&
+      cartAgeRestrictionClasses(kiosk.cart, ageConfig).length
+    ) {
+      onNotify?.(
+        "This cart includes age-restricted items. Use the staffed sales till.",
+        "warning"
+      );
+      return false;
+    }
     if (!accessToken) {
       onNotify?.("Sign in required to complete self-checkout.", "error");
+      return false;
+    }
+    if (!isShiftOpenForTill(tillNumber)) {
+      onNotify?.(`Open a shift on kiosk till ${tillNumber} before accepting payment.`, "warning");
       return false;
     }
 
@@ -259,13 +349,18 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
           ...demographicConfig,
           securelinkTerminalId: config?.terminalId || demographicConfig.securelinkTerminalId,
         });
-        cardPayment = await processCardPayment({
-          amount: totals.total,
-          payMethod: kiosk.payMethod,
-          tillNumber,
-          terminalId,
-          accessToken,
-          onStatus: setCardPaymentStatus,
+        cardPayment = await runAuditedCardPayment({
+          logActivity,
+          processCardPayment,
+          paymentParams: {
+            amount: totals.total,
+            payMethod: kiosk.payMethod,
+            tillNumber,
+            terminalId,
+            accessToken,
+            onStatus: setCardPaymentStatus,
+          },
+          auditContext: { tillNumber, channel: "self_checkout" },
         });
       }
 
@@ -282,18 +377,18 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
           loyaltyPointsRedeemed: Number(kiosk.loyaltyPointsRedeemed) || 0,
           loyaltyRedemption: Number(totals.loyaltyRedemption.toFixed(2)),
           taxExempt: false,
+          provinceCode: taxConfig.provinceCode,
+          businessNumber: taxConfig.businessNumber || null,
+          taxPricingMode: taxConfig.pricingMode,
+          taxBreakdown: kioskTotals.taxBreakdown,
           cardPayment: cardPayment
-            ? {
-                reference: cardPayment.reference || cardPayment.authCode,
-                authCode: cardPayment.authCode,
-                last4: cardPayment.last4,
-                cardBrand: cardPayment.cardBrand,
-                entryMethod: cardPayment.entryMethod,
+            ? sanitizeCardPaymentForStorage({
+                ...cardPayment,
                 terminalId: resolveSecurelinkTerminalId(tillNumber, {
                   ...demographicConfig,
                   securelinkTerminalId: config?.terminalId || demographicConfig.securelinkTerminalId,
                 }),
-              }
+              })
             : null,
         },
         accessToken
@@ -316,7 +411,7 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
         }
       }
 
-      const shift = getActiveShift();
+      const shift = getActiveShift(tillNumber);
       const snapshot = buildCompletedSaleSnapshot({
         cart: kiosk.cart,
         result,
@@ -339,6 +434,8 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
         tenderedAmount: null,
         changeDue: 0,
         taxExempt: false,
+        taxBreakdown: kioskTotals.taxBreakdown,
+        taxConfig,
       });
       snapshot.channel = "self_checkout";
       snapshot.receiptDelivery = kiosk.receiptDelivery;
@@ -459,6 +556,13 @@ export function useSelfCheckout({ onNotify, logActivity } = {}) {
     cardPaymentStatus,
     completeKioskSale,
     clearSessions,
-    cancelCardPayment: () => cancelActivePayment(accessToken),
+    cancelCardPayment: async () => {
+      await cancelActivePayment(accessToken);
+      await logCardPaymentActivity(logActivity, "Card payment cancelled", {
+        tillNumber,
+        channel: "self_checkout",
+        outcome: "cancelled",
+      });
+    },
   };
 }

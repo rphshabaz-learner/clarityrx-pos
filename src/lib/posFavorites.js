@@ -1,4 +1,10 @@
 import { scopedStorageKey } from "../session/scopedStorage";
+import { normalizeTillNumber } from "./posTill";
+import { tillScopedStorageKey } from "./tillScopedStorage";
+import {
+  buildDefaultSecurelinkTerminalMappings,
+  normalizeSecurelinkTerminalMappings,
+} from "./securelinkConfig";
 
 export const POS_FAVORITES_STORAGE_KEY = "clarityrx-pos-favorites-v1";
 export const POS_DEMOGRAPHICS_STORAGE_KEY = "clarityrx-pos-demographics-v1";
@@ -12,6 +18,8 @@ export const DEFAULT_TILL_OPTIONS = {
   collectSaleNotes: true,
   promptForBag: true,
   quickTenderAmounts: [10, 20, 50, 100],
+  /** `session` = manual header shift; `transaction` = open/close shift per sale; `auto` = transaction when till is not workstation-locked */
+  cashShiftMode: "auto",
 };
 
 /** Customer types (default skips till prompt when enabled). */
@@ -69,17 +77,29 @@ function safeParse(raw, fallback) {
   }
 }
 
-export function loadPosFavoritesConfig() {
-  const raw = localStorage.getItem(scopedStorageKey(POS_FAVORITES_STORAGE_KEY));
-  const parsed = safeParse(raw, null);
+function readFavoritesRaw(tillNumber) {
+  const till = normalizeTillNumber(tillNumber);
+  const tillKey = tillScopedStorageKey(POS_FAVORITES_STORAGE_KEY, till);
+  let raw = localStorage.getItem(tillKey);
+  if (!raw && till === 1) {
+    raw = localStorage.getItem(scopedStorageKey(POS_FAVORITES_STORAGE_KEY));
+    if (raw) {
+      localStorage.setItem(tillKey, raw);
+    }
+  }
+  return raw;
+}
+
+export function loadPosFavoritesConfig(tillNumber = 1) {
+  const parsed = safeParse(readFavoritesRaw(tillNumber), null);
   const tabs = Array.isArray(parsed?.tabs) && parsed.tabs.length ? parsed.tabs : DEFAULT_FAVORITE_TABS;
   const items = Array.isArray(parsed?.items) && parsed.items.length ? parsed.items : DEFAULT_FAVORITE_ITEMS;
   return { tabs, items };
 }
 
-export function savePosFavoritesConfig({ tabs, items }) {
+export function savePosFavoritesConfig({ tabs, items }, tillNumber = 1) {
   localStorage.setItem(
-    scopedStorageKey(POS_FAVORITES_STORAGE_KEY),
+    tillScopedStorageKey(POS_FAVORITES_STORAGE_KEY, tillNumber),
     JSON.stringify({ tabs, items, updatedAt: new Date().toISOString() })
   );
 }
@@ -109,11 +129,21 @@ export function loadPosDemographicConfig() {
       ? parsed.securelinkTerminalPrefix.trim()
       : DEFAULT_TILL_OPTIONS.securelinkTerminalPrefix;
 
+  const securelinkTerminalMappings = normalizeSecurelinkTerminalMappings(
+    parsed?.securelinkTerminalMappings,
+    securelinkTerminalPrefix
+  );
+
+  const cashShiftMode = ["auto", "session", "transaction"].includes(parsed?.cashShiftMode)
+    ? parsed.cashShiftMode
+    : DEFAULT_TILL_OPTIONS.cashShiftMode;
+
   return {
     options,
     defaultId,
     skipPrompt,
     securelinkTerminalPrefix,
+    securelinkTerminalMappings,
     printMerchantCopy: parsed?.printMerchantCopy !== false,
     taxRate: Math.max(0, taxRate),
     defaultDiscountType,
@@ -121,6 +151,7 @@ export function loadPosDemographicConfig() {
     collectSaleNotes: parsed?.collectSaleNotes !== false,
     promptForBag: parsed?.promptForBag !== false,
     quickTenderAmounts,
+    cashShiftMode,
   };
 }
 

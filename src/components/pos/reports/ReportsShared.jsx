@@ -50,8 +50,34 @@ export function StatRow({ children }) {
   return <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>{children}</div>;
 }
 
-export function DataTable({ columns, rows, emptyMessage = "No data for this period." }) {
-  if (!rows?.length) return <EmptyState message={emptyMessage} />;
+function tillRowLabel(row) {
+  if (row?.tillLabel) return row.tillLabel;
+  if (row?.tillNumber == null) return "—";
+  return `Till ${row.tillNumber}`;
+}
+
+export function tillTableColumns({ includeTender = true } = {}) {
+  const cols = [
+    {
+      key: "tillNumber",
+      label: "Till",
+      render: (row) => tillRowLabel(row),
+    },
+    { key: "transactions", label: "Txns" },
+    { key: "gross", label: "Gross", render: (row) => formatMoney(row.gross) },
+  ];
+  if (includeTender) {
+    cols.push(
+      { key: "cash", label: "Cash", render: (row) => formatMoney(row.cash) },
+      { key: "card", label: "Card", render: (row) => formatMoney(row.card) },
+      { key: "other", label: "Other", render: (row) => formatMoney(row.other) }
+    );
+  }
+  return cols;
+}
+
+export function DataTable({ columns, rows, summaryRow, emptyMessage = "No data for this period." }) {
+  if (!rows?.length && !summaryRow) return <EmptyState message={emptyMessage} />;
   return (
     <div className="crx-card" style={{ overflow: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -74,7 +100,7 @@ export function DataTable({ columns, rows, emptyMessage = "No data for this peri
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
+          {(rows || []).map((row, index) => (
             <tr key={row.id || row.key || index} style={{ borderBottom: "1px solid #f3f4f6" }}>
               {columns.map((col) => (
                 <td key={col.key} style={{ padding: "10px 12px", color: "#111827", verticalAlign: "top" }}>
@@ -83,6 +109,22 @@ export function DataTable({ columns, rows, emptyMessage = "No data for this peri
               ))}
             </tr>
           ))}
+          {summaryRow ? (
+            <tr
+              key="summary"
+              style={{
+                borderTop: "2px solid #e5e7eb",
+                background: "#f3f4f6",
+                fontWeight: 700,
+              }}
+            >
+              {columns.map((col) => (
+                <td key={col.key} style={{ padding: "10px 12px", color: "#111827", verticalAlign: "top" }}>
+                  {col.render ? col.render(summaryRow) : summaryRow[col.key]}
+                </td>
+              ))}
+            </tr>
+          ) : null}
         </tbody>
       </table>
     </div>

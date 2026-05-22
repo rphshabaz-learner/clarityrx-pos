@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
+import { usePosKeyboardShortcuts } from "../../../hooks/usePosKeyboardShortcuts";
 import { POS_FRONT_STORE_ITEMS } from "../../../modules/pos/posCatalog";
 import {
   filterCatalogByDepartment,
@@ -7,9 +8,16 @@ import {
   SALES_PAYMENT_METHODS,
 } from "../../../lib/posSalesRegister";
 import { isCardPayMethod } from "../../../lib/posPayments";
+import { BalanceBanner } from "../giftcards/GiftCardShared";
 import { resolveSecurelinkTerminalId } from "../../../lib/securelinkConfig";
+import { formatTaxReceiptLines } from "../../../lib/receipt/saleReceiptFormat";
+import {
+  ageRestrictionLabel,
+  resolveAgeRestrictionClass,
+} from "../../../lib/compliance/ageRestrictedProducts";
 
 function TouchTile({ label, sublabel, onClick, disabled, emoji }) {
+  const ariaLabel = sublabel ? `${label}, ${sublabel}` : label;
   return (
     <button
       type="button"
@@ -17,8 +25,13 @@ function TouchTile({ label, sublabel, onClick, disabled, emoji }) {
       onClick={onClick}
       disabled={disabled}
       title={label}
+      aria-label={ariaLabel}
     >
-      {emoji ? <span className="crx-sales-tile__emoji">{emoji}</span> : null}
+      {emoji ? (
+        <span className="crx-sales-tile__emoji" aria-hidden>
+          {emoji}
+        </span>
+      ) : null}
       <span className="crx-sales-tile__label">{label}</span>
       {sublabel ? <span className="crx-sales-tile__sublabel">{sublabel}</span> : null}
     </button>
@@ -26,6 +39,7 @@ function TouchTile({ label, sublabel, onClick, disabled, emoji }) {
 }
 
 function SaleOptionsModal({
+  canDiscount,
   discountType,
   discountValue,
   onDiscountTypeChange,
@@ -62,22 +76,26 @@ function SaleOptionsModal({
         <div className="crx-sales-options-modal__grid">
           <label className="crx-sales-options-modal__field">
             <span>Cart discount</span>
-            <div className="crx-sales-options-modal__pair">
-              <select className="crx-select" value={discountType} onChange={(e) => onDiscountTypeChange(e.target.value)}>
-                <option value="none">None</option>
-                <option value="percent">%</option>
-                <option value="amount">$</option>
-              </select>
-              <input
-                className="crx-input"
-                type="number"
-                min="0"
-                step="0.01"
-                value={discountValue}
-                disabled={discountType === "none"}
-                onChange={(e) => onDiscountValueChange(e.target.value)}
-              />
-            </div>
+            {canDiscount ? (
+              <div className="crx-sales-options-modal__pair">
+                <select className="crx-select" value={discountType} onChange={(e) => onDiscountTypeChange(e.target.value)}>
+                  <option value="none">None</option>
+                  <option value="percent">%</option>
+                  <option value="amount">$</option>
+                </select>
+                <input
+                  className="crx-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={discountValue}
+                  disabled={discountType === "none"}
+                  onChange={(e) => onDiscountValueChange(e.target.value)}
+                />
+              </div>
+            ) : (
+              <span className="crx-sales-totals__hint">Supervisor or manager override required.</span>
+            )}
           </label>
           <label className="crx-sales-options-modal__field">
             <span>Coupon</span>
@@ -95,7 +113,7 @@ function SaleOptionsModal({
             </div>
             {couponHint ? <span className="crx-sales-totals__hint">{couponHint}</span> : null}
           </label>
-          <label className="crx-sales-options-modal__field">
+          <label className="crx-sales-options-modal__field crx-sales-options-modal__field--loyalty">
             <span>Loyalty points</span>
             <input
               className="crx-input"
@@ -255,6 +273,8 @@ export default function PosSalesRegisterPanel({
   onUpdateQty,
   onUpdatePrice,
   onUpdateLineDiscount,
+  canVoid = true,
+  canDiscount = true,
   managerOverrideActive,
   favoritesItems,
   onAddCatalogItem,
@@ -281,6 +301,9 @@ export default function PosSalesRegisterPanel({
   loyaltyRedemption,
   tax,
   taxRate,
+  taxBreakdown,
+  provinceLabel,
+  taxPricingMode,
   total,
   payMethod,
   onPayMethodChange,
@@ -307,14 +330,44 @@ export default function PosSalesRegisterPanel({
   promptForBag,
   quickServiceItems,
   onAddServiceItem,
+  giftCardNumber,
+  onGiftCardNumberChange,
+  giftCardLookup,
+  giftCardRedeemAmount,
+  showGiftCardTender,
+  onOpenGiftCards,
+  onSuspendSale,
+  ageCheckoutBlocked,
+  ageCheckoutMessage,
+  pendingAgeVerification,
+  onResumeSale,
+  showKeyboardHints = false,
 }) {
   const [showSaleOptions, setShowSaleOptions] = useState(false);
+  const scanInputRef = useRef(null);
+  const bagScanInputRef = useRef(null);
+
+  usePosKeyboardShortcuts({
+    enabled: showKeyboardHints && !showSaleOptions && !showSignatureModal,
+    handlers: {
+      focusScan: () => scanInputRef.current?.focus(),
+      focusBagScan: () => bagScanInputRef.current?.focus(),
+      charge: onCharge,
+      suspend: onSuspendSale,
+      resume: onResumeSale,
+      escape: () => {
+        if (showSaleOptions) setShowSaleOptions(false);
+      },
+    },
+  });
   const departments = useMemo(() => listPosDepartments(), []);
   const hotProducts = useMemo(() => (favoritesItems || []).slice(0, 8), [favoritesItems]);
   const departmentItems = useMemo(
     () => (activeDepartment ? filterCatalogByDepartment(activeDepartment).slice(0, 6) : []),
     [activeDepartment]
   );
+
+  const canPriceOverride = canDiscount || managerOverrideActive;
 
   const couponHint = POS_CHECKOUT_COUPONS[couponCode.trim().toUpperCase()]?.label;
   const hasSaleOptions =
@@ -328,11 +381,12 @@ export default function PosSalesRegisterPanel({
   return (
     <div className="crx-sales-register crx-sales-register--fit">
       <div className="crx-sales-register__left">
-        <div className="crx-card crx-sales-scan">
+        <div className="crx-card crx-sales-scan crx-sales-scan--rx">
           <div className="crx-sales-scan__row">
             <label className="crx-sales-scan__field">
               <span className="crx-sales-scan__label">Barcode / SKU scan</span>
               <input
+                ref={scanInputRef}
                 className="crx-input"
                 placeholder="Scan or type SKU, UPC, or item name"
                 value={search}
@@ -341,9 +395,10 @@ export default function PosSalesRegisterPanel({
                 autoComplete="off"
               />
             </label>
-            <label className="crx-sales-scan__field">
+            <label className="crx-sales-scan__field crx-field-rx">
               <span className="crx-sales-scan__label">Rx bag / pickup</span>
               <input
+                ref={bagScanInputRef}
                 className="crx-input"
                 placeholder="Scan prescription bag barcode"
                 value={bagScan}
@@ -399,15 +454,17 @@ export default function PosSalesRegisterPanel({
               <button type="button" className="btn-secondary" style={{ padding: "4px 10px", fontSize: 11 }} onClick={onOpenFavorites}>
                 Quick SKUs
               </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                style={{ padding: "4px 10px", fontSize: 11 }}
-                onClick={onClearCart}
-                disabled={cart.length === 0 && !selectedPickup}
-              >
-                Clear
-              </button>
+              {canVoid ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ padding: "4px 10px", fontSize: 11 }}
+                  onClick={onClearCart}
+                  disabled={cart.length === 0 && !selectedPickup}
+                >
+                  Clear
+                </button>
+              ) : null}
             </div>
           </div>
           <div className="crx-sales-cart__scroll">
@@ -419,10 +476,27 @@ export default function PosSalesRegisterPanel({
               </div>
               {cart.length > 0 ? (
                 cart.map((item) => (
-                  <div key={item.sku} className="crx-sales-cart__row">
+                  <div
+                    key={item.sku}
+                    className={`crx-sales-cart__row${canPriceOverride ? " crx-sales-cart__row--override" : ""}`}
+                  >
                     <div>
                       <div className="crx-sales-cart__name">{item.name}</div>
-                      <div className="crx-sales-cart__sku">{item.category}</div>
+                      <div className="crx-sales-cart__sku">
+                        {item.category}
+                        {resolveAgeRestrictionClass(item) !== "none" ? (
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              color: "#b45309",
+                            }}
+                          >
+                            {ageRestrictionLabel(resolveAgeRestrictionClass(item))}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="crx-sales-cart__qty">
                       <button
@@ -430,6 +504,7 @@ export default function PosSalesRegisterPanel({
                         className="btn-secondary crx-qty-btn"
                         onClick={() => onUpdateQty(item.sku, item.qty - 1)}
                         aria-label="Decrease quantity"
+                        disabled={!canVoid && item.qty <= 1}
                       >
                         -
                       </button>
@@ -449,7 +524,7 @@ export default function PosSalesRegisterPanel({
                         +
                       </button>
                     </div>
-                    {managerOverrideActive ? (
+                    {canPriceOverride ? (
                       <input
                         className="crx-input crx-sales-cart__price-input"
                         type="number"
@@ -457,34 +532,42 @@ export default function PosSalesRegisterPanel({
                         step="0.01"
                         value={item.price}
                         onChange={(e) => onUpdatePrice(item.sku, e.target.value)}
-                        title="Price override (manager)"
+                        title="Price override"
                       />
                     ) : (
                       <div className="crx-sales-cart__money">${Number(item.price).toFixed(2)}</div>
                     )}
-                    <input
-                      className="crx-input crx-sales-cart__disc-input"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.lineDiscount || 0}
-                      onChange={(e) => onUpdateLineDiscount(item.sku, e.target.value)}
-                      title="Line discount"
-                    />
+                    {canDiscount ? (
+                      <input
+                        className="crx-input crx-sales-cart__disc-input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.lineDiscount || 0}
+                        onChange={(e) => onUpdateLineDiscount(item.sku, e.target.value)}
+                        title="Line discount"
+                      />
+                    ) : (
+                      <div className="crx-sales-cart__money">—</div>
+                    )}
                     <div className="crx-sales-cart__money crx-sales-cart__money--strong">
                       $
                       {(
                         Math.max(0, item.price * item.qty - (Number(item.lineDiscount) || 0))
                       ).toFixed(2)}
                     </div>
-                    <button
-                      type="button"
-                      className="crx-icon-btn"
-                      onClick={() => onRemoveLine(item.sku)}
-                      aria-label="Remove line"
-                    >
-                      ×
-                    </button>
+                    {canVoid ? (
+                      <button
+                        type="button"
+                        className="crx-icon-btn"
+                        onClick={() => onRemoveLine(item.sku)}
+                        aria-label="Remove line"
+                      >
+                        ×
+                      </button>
+                    ) : (
+                      <span />
+                    )}
                   </div>
                 ))
               ) : (
@@ -528,15 +611,33 @@ export default function PosSalesRegisterPanel({
               </div>
             ) : null}
             {loyaltyRedemption > 0 ? (
-              <div className="crx-sales-totals__line">
+              <div className="crx-sales-totals__line crx-sales-totals__line--loyalty">
                 <span>Loyalty</span>
                 <span>-${loyaltyRedemption.toFixed(2)}</span>
               </div>
             ) : null}
-            <div className="crx-sales-totals__line">
-              <span>Tax ({taxExempt ? "exempt" : `${(taxRate * 100).toFixed(2)}%`})</span>
-              <span>${tax.toFixed(2)}</span>
-            </div>
+            {taxExempt ? (
+              <div className="crx-sales-totals__line">
+                <span>Tax (exempt)</span>
+                <span>$0.00</span>
+              </div>
+            ) : formatTaxReceiptLines(taxBreakdown).length ? (
+              formatTaxReceiptLines(taxBreakdown).map((row) => (
+                <div key={row.label} className="crx-sales-totals__line">
+                  <span>
+                    {row.label}
+                    {provinceLabel ? ` · ${provinceLabel}` : ""}
+                    {taxPricingMode === "inclusive" ? " (incl.)" : ""}
+                  </span>
+                  <span>${row.amount.toFixed(2)}</span>
+                </div>
+              ))
+            ) : (
+              <div className="crx-sales-totals__line">
+                <span>Tax ({(taxRate * 100).toFixed(2)}%)</span>
+                <span>${tax.toFixed(2)}</span>
+              </div>
+            )}
             <div className="crx-sales-totals__grand">
               <span>Total due</span>
               <span>${total.toFixed(2)}</span>
@@ -546,14 +647,33 @@ export default function PosSalesRegisterPanel({
       </div>
 
       <div className="crx-sales-register__right">
-        <div className="crx-card crx-sales-pay">
+        <div className="crx-card crx-sales-pay crx-sales-pay--panel crx-tone-pay">
           <div className="crx-card-header">
             <span className="crx-card-title">Payment</span>
           </div>
           <div className="crx-sales-pay__body">
+            {showKeyboardHints ? (
+              <div className="crx-shortcuts-hint" aria-label="Keyboard shortcuts">
+                <span><kbd className="crx-kbd">F1</kbd> Scan</span>
+                <span><kbd className="crx-kbd">F2</kbd> Rx bag</span>
+                <span><kbd className="crx-kbd">F3</kbd> Charge</span>
+                <span><kbd className="crx-kbd">F4</kbd> Suspend</span>
+                <span><kbd className="crx-kbd">F5</kbd> Resume</span>
+              </div>
+            ) : null}
             {showDemographicPrompt ? (
               <div className="crx-sales-pay__banner">
                 Confirm customer: <strong>{demographicLabel}</strong>. Tap Charge again to complete.
+              </div>
+            ) : null}
+            {pendingAgeVerification ? (
+              <div className="crx-sales-pay__banner" style={{ borderColor: "#f59e0b", background: "#fffbeb" }}>
+                Complete age verification for <strong>{pendingAgeVerification}</strong> before charging.
+              </div>
+            ) : null}
+            {ageCheckoutBlocked && ageCheckoutMessage ? (
+              <div className="crx-sales-pay__banner" style={{ borderColor: "#dc2626", background: "#fef2f2" }}>
+                {ageCheckoutMessage}
               </div>
             ) : null}
             <div className="crx-sales-pay__methods">
@@ -602,6 +722,26 @@ export default function PosSalesRegisterPanel({
                     />
                   </div>
                 ))}
+              </div>
+            ) : null}
+            {showGiftCardTender ? (
+              <div className="crx-sales-giftcard" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>
+                  Gift card {giftCardRedeemAmount > 0 ? `· $${giftCardRedeemAmount.toFixed(2)} to redeem` : ""}
+                </label>
+                <input
+                  className="crx-input"
+                  placeholder="GC-1000-0001 or scan"
+                  value={giftCardNumber || ""}
+                  onChange={(e) => onGiftCardNumberChange?.(e.target.value)}
+                  autoComplete="off"
+                />
+                {giftCardNumber?.trim() && giftCardLookup ? <BalanceBanner lookup={giftCardLookup} /> : null}
+                {onOpenGiftCards ? (
+                  <button type="button" className="btn-secondary" style={{ width: "100%" }} onClick={onOpenGiftCards}>
+                    Gift card tools (activate / reload)
+                  </button>
+                ) : null}
               </div>
             ) : null}
             {payMethod === "Cash" && !splitEnabled ? (
@@ -653,9 +793,9 @@ export default function PosSalesRegisterPanel({
             ) : null}
             <button
               type="button"
-              className="btn-primary crx-charge-btn"
+              className="btn-tone-pay crx-charge-btn"
               onClick={onCharge}
-              disabled={(cart.length === 0 && !selectedPickup) || charging}
+              disabled={(cart.length === 0 && !selectedPickup) || charging || ageCheckoutBlocked}
             >
               {charging
                 ? securelinkActive && isCardPayMethod(payMethod)
@@ -732,6 +872,7 @@ export default function PosSalesRegisterPanel({
 
       {showSaleOptions ? (
         <SaleOptionsModal
+          canDiscount={canDiscount}
           discountType={discountType}
           discountValue={discountValue}
           onDiscountTypeChange={onDiscountTypeChange}

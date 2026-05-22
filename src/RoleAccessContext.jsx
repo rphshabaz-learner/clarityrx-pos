@@ -1,5 +1,11 @@
 import React, { createContext, useCallback, useContext, useMemo } from "react";
 import { useAuth } from "./AuthContext";
+import {
+  POS_ADMIN_ROLES,
+  POS_RBAC_TIERS,
+  POS_SUPERVISOR_ROLES,
+  posAccessTierForRole,
+} from "./lib/posRoleAccess";
 
 /** POS till roles — independent of pharmacy clinical screens. */
 export const ROLE_DEFINITIONS = {
@@ -7,54 +13,70 @@ export const ROLE_DEFINITIONS = {
     id: "admin",
     label: "Admin",
     shortLabel: "Admin",
-    description: "Full POS till access including charge.",
+    description: "Configurations, tax settings, and security.",
+    accessTier: "admin",
+  },
+  supervisor: {
+    id: "supervisor",
+    label: "Supervisor",
+    shortLabel: "Supervisor",
+    description: "Refunds, voids, and discounts on the till.",
+    accessTier: "supervisor",
   },
   pharmacist: {
     id: "pharmacist",
     label: "Pharmacist",
     shortLabel: "Pharmacist",
-    description: "POS till access including charge.",
+    description: "Supervisor-level till access (voids, refunds, discounts).",
+    accessTier: "supervisor",
   },
   relief_pharmacist: {
     id: "relief_pharmacist",
     label: "Relief Pharmacist",
     shortLabel: "Relief",
-    description: "POS till access including charge.",
+    description: "Supervisor-level till access (voids, refunds, discounts).",
+    accessTier: "supervisor",
   },
   store_manager: {
     id: "store_manager",
     label: "Store Manager",
     shortLabel: "Manager",
-    description: "POS till access including charge.",
+    description: "Supervisor-level till access (voids, refunds, discounts).",
+    accessTier: "supervisor",
   },
   technician: {
     id: "technician",
     label: "Technician",
     shortLabel: "Tech",
-    description: "POS till access including charge.",
+    description: "Sales and inventory workflows.",
+    accessTier: "cashier",
   },
   assistant: {
     id: "assistant",
     label: "Pharmacy Assistant",
     shortLabel: "Asst",
-    description: "POS till access including charge.",
+    description: "Sales and supporting workflows.",
+    accessTier: "cashier",
   },
   student: {
     id: "student",
     label: "Student",
     shortLabel: "Student",
-    description: "POS till access including charge.",
+    description: "Sales only on the till.",
+    accessTier: "cashier",
   },
   cashier: {
     id: "cashier",
     label: "Cashier",
     shortLabel: "Cashier",
-    description: "Point-of-sale access.",
+    description: "Sales only on the till.",
+    accessTier: "cashier",
   },
 };
 
 export const ROLE_ORDER = [
   "admin",
+  "supervisor",
   "pharmacist",
   "relief_pharmacist",
   "store_manager",
@@ -67,6 +89,7 @@ export const ROLE_ORDER = [
 const PERMISSIONS = {
   "screen.pos": [
     "admin",
+    "supervisor",
     "pharmacist",
     "relief_pharmacist",
     "store_manager",
@@ -75,17 +98,41 @@ const PERMISSIONS = {
     "student",
     "cashier",
   ],
+  /** Ring sales and complete payment. */
   "pos.charge": [
+    "admin",
+    "supervisor",
+    "pharmacist",
+    "relief_pharmacist",
+    "store_manager",
+    "technician",
+    "assistant",
+    "student",
+    "cashier",
+  ],
+  "pos.voids": POS_SUPERVISOR_ROLES,
+  "pos.refunds": POS_SUPERVISOR_ROLES,
+  "pos.discounts": POS_SUPERVISOR_ROLES,
+  "pos.configure": POS_ADMIN_ROLES,
+  "pos.tax": POS_ADMIN_ROLES,
+  "pos.security": POS_ADMIN_ROLES,
+  "pos.purchasing": [
     "admin",
     "pharmacist",
     "relief_pharmacist",
     "store_manager",
     "technician",
     "assistant",
-    "student",
-    "cashier",
   ],
-  "pos.purchasing": [
+  "pos.inventory": [
+    "admin",
+    "pharmacist",
+    "relief_pharmacist",
+    "store_manager",
+    "technician",
+    "assistant",
+  ],
+  "pos.handheld": [
     "admin",
     "pharmacist",
     "relief_pharmacist",
@@ -103,6 +150,7 @@ const PERMISSIONS = {
   ],
   "pos.customers": [
     "admin",
+    "supervisor",
     "pharmacist",
     "relief_pharmacist",
     "store_manager",
@@ -115,9 +163,11 @@ const PERMISSIONS = {
     "pharmacist",
     "relief_pharmacist",
     "store_manager",
+    "supervisor",
   ],
   "pos.rx": [
     "admin",
+    "supervisor",
     "pharmacist",
     "relief_pharmacist",
     "store_manager",
@@ -132,9 +182,42 @@ const PERMISSIONS = {
     "store_manager",
     "technician",
     "assistant",
+    "supervisor",
+  ],
+  "pos.giftcards": [
+    "admin",
+    "pharmacist",
+    "relief_pharmacist",
+    "store_manager",
+    "technician",
+    "assistant",
+    "supervisor",
     "cashier",
   ],
 };
+
+/** Human-readable labels for the permissions matrix (Staff → Permissions). */
+export const POS_PERMISSION_DEFINITIONS = [
+  { id: "screen.pos", label: "POS workspace", group: "workspace" },
+  { id: "pos.charge", label: "Sales (charge & tender)", group: "sales" },
+  { id: "pos.voids", label: "Voids", group: "supervisor" },
+  { id: "pos.refunds", label: "Refunds", group: "supervisor" },
+  { id: "pos.discounts", label: "Discounts & price override", group: "supervisor" },
+  { id: "pos.configure", label: "Configurations", group: "admin" },
+  { id: "pos.tax", label: "Tax settings", group: "admin" },
+  { id: "pos.security", label: "Security & privacy", group: "admin" },
+  { id: "pos.purchasing", label: "Purchasing & receiving", group: "workspace" },
+  { id: "pos.inventory", label: "Inventory maintenance", group: "workspace" },
+  { id: "pos.handheld", label: "Handheld (mobile)", group: "workspace" },
+  { id: "pos.promotions", label: "Promotions", group: "workspace" },
+  { id: "pos.customers", label: "Customers", group: "workspace" },
+  { id: "pos.reports", label: "Reporting, staff & audit", group: "workspace" },
+  { id: "pos.rx", label: "Rx integration", group: "workspace" },
+  { id: "pos.selfcheckout", label: "Self checkout", group: "workspace" },
+  { id: "pos.giftcards", label: "Gift cards", group: "workspace" },
+];
+
+export { POS_RBAC_TIERS, posAccessTierForRole };
 
 export const SCREEN_IDS = ["pos"];
 
@@ -156,6 +239,7 @@ const RoleAccessContext = createContext(null);
 export function RoleAccessProvider({ children }) {
   const { user } = useAuth();
   const activeRole = ROLE_DEFINITIONS[user?.role] ? user.role : "cashier";
+  const accessTier = posAccessTierForRole(activeRole);
 
   const hasPermission = useCallback(
     (permissionId) => getRolesForPermission(permissionId).includes(activeRole),
@@ -172,6 +256,7 @@ export function RoleAccessProvider({ children }) {
   const value = useMemo(
     () => ({
       activeRole,
+      accessTier,
       roleDefinition: ROLE_DEFINITIONS[activeRole],
       roleDefinitions: ROLE_DEFINITIONS,
       roleOrder: ROLE_ORDER,
@@ -181,7 +266,7 @@ export function RoleAccessProvider({ children }) {
       getDefaultScreenForRole,
       getAccessibleScreensForRole,
     }),
-    [activeRole, hasPermission, canAccessScreen, setActiveRole]
+    [activeRole, accessTier, hasPermission, canAccessScreen, setActiveRole]
   );
 
   return <RoleAccessContext.Provider value={value}>{children}</RoleAccessContext.Provider>;

@@ -1,3 +1,5 @@
+import { AGE_RESTRICTION_NONE, normalizeAgeRestrictionClass } from "../compliance/ageRestrictedProducts";
+
 /** Front-shop / OTC inventory departments (pharmacy retail categories). */
 export const FRONT_STORE_DEPARTMENTS = [
   { id: "otc", label: "OTC" },
@@ -57,6 +59,8 @@ export function productToCatalogItem(product) {
     category: product.category || departmentLabel(product.departmentId),
     stock: Number(product.onHand) || 0,
     price: Number(product.retail) || 0,
+    controlled: Boolean(product.controlled || product.controlledSale),
+    ageRestrictionClass: normalizeAgeRestrictionClass(product.ageRestrictionClass),
   };
 }
 
@@ -76,6 +80,7 @@ export function emptyProduct() {
     onHand: 0,
     vendorId: "",
     status: PRODUCT_STATUS.ACTIVE,
+    ageRestrictionClass: AGE_RESTRICTION_NONE,
     trackExpiry: false,
     lots: [],
     notes: "",

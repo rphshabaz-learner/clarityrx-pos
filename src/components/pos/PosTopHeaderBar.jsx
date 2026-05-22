@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { usePosKeyboardShortcuts } from "../../hooks/usePosKeyboardShortcuts";
 import { useAuth } from "../../AuthContext";
 import { useRoleAccess } from "../../RoleAccessContext";
 import { usePosTill } from "../../context/PosTillContext";
 import { usePosHeaderStatus } from "../../hooks/usePosHeaderStatus";
+import { deviceTillBindingLabel } from "../../lib/posDeviceTill";
 import { POS_TILL_OPTIONS } from "../../lib/posTill";
+import { logImmutableAudit } from "../../lib/audit/posImmutableAudit";
 import { shiftStatusLabel } from "../../lib/posShift";
+import { usePosWorkspaceData } from "../../hooks/usePosWorkspaceData";
 import { resolveStoreDisplayName } from "../../lib/posStoreDisplay";
 import { POS_FRONT_STORE_ITEMS } from "../../modules/pos/posCatalog";
 
@@ -22,7 +26,9 @@ function formatClock(now) {
 function StatusPill({ tone = "neutral", label, detail, title }) {
   const tones = {
     ok: { bg: "#14532d", border: "#166534", text: "#bbf7d0" },
-    warn: { bg: "#78350f", border: "#92400e", text: "#fde68a" },
+    warn: { bg: "#9a3412", border: "#ea580c", text: "#ffedd5" },
+    override: { bg: "#7f1d1d", border: "#b91c1c", text: "#fecaca" },
+    rx: { bg: "#1e3a8a", border: "#2563eb", text: "#dbeafe" },
     neutral: { bg: "#1e293b", border: "#334155", text: "#cbd5e1" },
     error: { bg: "#7f1d1d", border: "#991b1b", text: "#fecaca" },
   };
@@ -39,7 +45,7 @@ function StatusPill({ tone = "neutral", label, detail, title }) {
   );
 }
 
-function QuickButton({ label, onClick, disabled, title, variant = "secondary" }) {
+function QuickButton({ label, onClick, disabled, title, variant = "secondary", ariaLabel }) {
   return (
     <button
       type="button"
@@ -47,6 +53,7 @@ function QuickButton({ label, onClick, disabled, title, variant = "secondary" })
       onClick={onClick}
       disabled={disabled}
       title={title || label}
+      aria-label={ariaLabel || title || label}
     >
       {label}
     </button>
@@ -59,7 +66,12 @@ export default function PosTopHeaderBar({ onNotify }) {
   const {
     selectedTillNumber,
     setSelectedTillNumber,
+    deviceTillBinding,
+    deviceTillLocked,
     shift,
+    openShift,
+    closeShift,
+    isShiftOpen,
     suspendedSale,
     lastCompletedSale,
     managerOverrideActive,
@@ -70,6 +82,7 @@ export default function PosTopHeaderBar({ onNotify }) {
     invokeTillAction,
   } = usePosTill();
   const { health, kroll, syncStatus, pickups, pickupTotal, pickupSyncOn, reloadPickups } = usePosHeaderStatus();
+  const { logActivity } = usePosWorkspaceData();
 
   const [now, setNow] = useState(() => new Date());
   const [customerQuery, setCustomerQuery] = useState("");
@@ -128,6 +141,11 @@ export default function PosTopHeaderBar({ onNotify }) {
     setShowManagerModal(true);
   };
 
+  usePosKeyboardShortcuts({
+    enabled: canManager,
+    handlers: { managerOverride: handleManagerOverride },
+  });
+
   const confirmManagerOverride = () => {
     activateManagerOverride(5);
     invokeTillAction("managerOverride");
@@ -143,9 +161,29 @@ export default function PosTopHeaderBar({ onNotify }) {
     invokeTillAction("reprintReceipt", lastCompletedSale);
   };
 
+  const handleCashDrop = () => {
+    const raw = window.prompt("Cash drop amount ($):", "");
+    if (raw == null) return;
+    const amount = Number(String(raw).replace(/[^0-9.-]/g, ""));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      notify("Enter a valid cash drop amount.", "warning");
+      return;
+    }
+    const reason = window.prompt("Reason (optional):", "safe_drop") || "safe_drop";
+    void logImmutableAudit(logActivity, {
+      user: user?.id || user?.username,
+      action: "cash_drop",
+      terminal: selectedTillNumber,
+      newValue: Number(amount.toFixed(2)),
+      reason,
+      detail: { shiftId: shift?.id || null },
+    });
+    notify(`Cash drop $${amount.toFixed(2)} recorded.`, "success");
+  };
+
   return (
     <>
-      <header className="crx-pos-header">
+      <header className="crx-pos-header" role="banner">
         <div className="crx-pos-header__row crx-pos-header__row--primary">
           <div className="crx-pos-header__brand">
             <div className="crx-pos-header__title">ClarityRx POS</div>
@@ -156,21 +194,31 @@ export default function PosTopHeaderBar({ onNotify }) {
                 {roleDefinition?.shortLabel ? ` · ${roleDefinition.shortLabel}` : ""}
                 {!canCharge ? " · view only" : ""}
               </span>
-              <label className="crx-pos-header__chip crx-pos-header__chip--till">
-                <span className="crx-pos-header__chip-label">Till</span>
-                <select
-                  className="crx-pos-header__till-select"
-                  value={selectedTillNumber}
-                  onChange={(event) => setSelectedTillNumber(Number(event.target.value))}
-                  aria-label="Select till number"
+              {deviceTillLocked ? (
+                <span
+                  className="crx-pos-header__chip crx-pos-header__chip--till"
+                  title={`${deviceTillBindingLabel(deviceTillBinding)} — cashiers cannot change till on this device`}
                 >
-                  {POS_TILL_OPTIONS.map((tillNumber) => (
-                    <option key={tillNumber} value={tillNumber}>
-                      {tillNumber}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <span className="crx-pos-header__chip-label">Till</span>
+                  <strong>{selectedTillNumber}</strong>
+                </span>
+              ) : (
+                <label className="crx-pos-header__chip crx-pos-header__chip--till">
+                  <span className="crx-pos-header__chip-label">Till</span>
+                  <select
+                    className="crx-pos-header__till-select"
+                    value={selectedTillNumber}
+                    onChange={(event) => setSelectedTillNumber(Number(event.target.value))}
+                    aria-label="Select till number"
+                  >
+                    {POS_TILL_OPTIONS.map((tillNumber) => (
+                      <option key={tillNumber} value={tillNumber}>
+                        {tillNumber}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <span className="crx-pos-header__chip">
                 <span className="crx-pos-header__chip-label">Store</span>
                 {storeName}
@@ -197,18 +245,21 @@ export default function PosTopHeaderBar({ onNotify }) {
               label={health.ok === false ? "API offline" : "Transmit"}
               detail={health.ok === false ? "Check connection" : "Online"}
             />
-            <StatusPill tone={krollTone} label={kroll.label} detail={kroll.detail} />
-            {managerOverrideActive ? <StatusPill tone="warn" label="Manager override" detail="Active" /> : null}
-            {suspendedSale ? <StatusPill tone="warn" label="Suspended sale" detail="Resume available" /> : null}
+            <StatusPill tone={kroll.connected === true ? "rx" : krollTone} label={kroll.label} detail={kroll.detail} />
+            {managerOverrideActive ? <StatusPill tone="override" label="Mgr override" detail="Active" /> : null}
+            {suspendedSale ? <StatusPill tone="warn" label="Suspended sale" detail="Resume · F5" /> : null}
           </div>
         </div>
 
         <div className="crx-pos-header__row crx-pos-header__row--secondary">
-          <div className="crx-pos-header__lookup">
-            <span className="crx-pos-header__lookup-label">Customer lookup</span>
+          <div className="crx-pos-header__lookup" role="search">
+            <span className="crx-pos-header__lookup-label" id="pos-header-customer-lookup-label">
+              Customer lookup
+            </span>
             <input
               className="crx-pos-header__lookup-input"
               placeholder="Bag barcode, Rx #, or name"
+              aria-labelledby="pos-header-customer-lookup-label"
               value={customerQuery}
               onChange={(event) => setCustomerQuery(event.target.value)}
               onKeyDown={(event) => {
@@ -218,7 +269,7 @@ export default function PosTopHeaderBar({ onNotify }) {
                 }
               }}
             />
-            <button type="button" className="btn-primary crx-pos-header__lookup-btn" onClick={handleCustomerLookup}>
+            <button type="button" className="btn-tone-rx crx-pos-header__lookup-btn" onClick={handleCustomerLookup}>
               Look up
             </button>
           </div>
@@ -292,14 +343,53 @@ export default function PosTopHeaderBar({ onNotify }) {
               onClick={() => invokeTillAction("resumeSale")}
               disabled={!canCharge || !suspendedSale}
             />
+            {isShiftOpen ? (
+              <QuickButton
+                label="Close shift"
+                title={`Close cash drawer session on till ${selectedTillNumber}`}
+                onClick={() => {
+                  closeShift();
+                  notify(`Till ${selectedTillNumber} shift closed.`, "success");
+                }}
+                disabled={!canCharge}
+              />
+            ) : (
+              <QuickButton
+                label="Open shift"
+                title={`Open cash drawer session on till ${selectedTillNumber}`}
+                onClick={() => {
+                  openShift();
+                  notify(`Till ${selectedTillNumber} shift opened.`, "success");
+                }}
+                disabled={!canCharge}
+                variant="primary"
+              />
+            )}
             <QuickButton label="No sale" title="Open cash drawer without a sale" onClick={() => invokeTillAction("noSale")} />
-            <QuickButton label="Price check" onClick={() => setShowPriceCheck(true)} />
             <QuickButton
-              label="Mgr override"
+              label="Cash drop"
+              title="Record cash removed from drawer to safe"
+              onClick={handleCashDrop}
+              disabled={!canCharge}
+            />
+            {canManager ? (
+              <QuickButton
+                label="Drawer count"
+                title="Record physical cash count for till variance warnings"
+                onClick={() => invokeTillAction("recordDrawerCount")}
+                disabled={!canCharge}
+              />
+            ) : null}
+            <QuickButton label="Price check" onClick={() => setShowPriceCheck(true)} />
+            <button
+              type="button"
+              className={`crx-pos-header__quick-btn crx-pos-header__quick-btn--override btn-secondary${managerOverrideActive ? " is-active" : ""}`}
               onClick={handleManagerOverride}
               disabled={!canManager}
-              variant={managerOverrideActive ? "primary" : "secondary"}
-            />
+              title="Manager override (F7)"
+            >
+              Mgr override
+            </button>
             <QuickButton label="Reprint" onClick={handleReprint} disabled={!lastCompletedSale} />
             <button type="button" className="btn-secondary crx-pos-header__quick-btn" onClick={() => logout()}>
               Sign out
@@ -361,8 +451,8 @@ export default function PosTopHeaderBar({ onNotify }) {
               <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowManagerModal(false)}>
                 Cancel
               </button>
-              <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={confirmManagerOverride}>
-                Approve
+              <button type="button" className="btn-tone-override" style={{ flex: 1 }} onClick={confirmManagerOverride}>
+                Approve override
               </button>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { QueryProvider } from "./providers/QueryProvider";
 import PosScreen from "./modules/pos/PosScreen";
 import { PosAppDataProvider } from "./PosAppDataProvider";
 import { PosTillProvider } from "./context/PosTillContext";
+import { PosAccessibilityProvider } from "./context/PosAccessibilityContext";
 import PosTopHeaderBar from "./components/pos/PosTopHeaderBar";
 import PosGlobalStyles from "./PosGlobalStyles";
 
@@ -106,8 +107,11 @@ function PosShell() {
 
   return (
     <div className="crx-pos-app">
+      <a href="#pos-main-content" className="crx-skip-link">
+        Skip to main content
+      </a>
       <PosTopHeaderBar />
-      <main className="crx-pos-app__main">
+      <main id="pos-main-content" className="crx-pos-app__main" tabIndex={-1}>
         <Suspense fallback={<PosLoading />}>
           <PosScreen />
         </Suspense>
@@ -119,11 +123,13 @@ function PosShell() {
 function PosAuthenticatedTree() {
   return (
     <RoleAccessProvider>
-      <PosAppDataProvider>
-        <PosTillProvider>
-          <PosShell />
-        </PosTillProvider>
-      </PosAppDataProvider>
+      <PosAccessibilityProvider>
+        <PosAppDataProvider>
+          <PosTillProvider>
+            <PosShell />
+          </PosTillProvider>
+        </PosAppDataProvider>
+      </PosAccessibilityProvider>
     </RoleAccessProvider>
   );
 }

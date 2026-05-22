@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { searchPosCustomers } from "../lib/customers/customerSearch";
 import { buildSeedCustomers } from "../lib/customers/seedCustomers";
 import {
@@ -7,6 +7,8 @@ import {
   generateCustomerId,
 } from "../lib/customers/customerTypes";
 import { deletePosCustomer, listPosCustomers, savePosCustomer } from "../lib/clarityIndexedDb";
+import { logAccessEvent } from "../lib/access/posAccessLog";
+import { diffConsentChanges, normalizeCustomerPrivacy } from "../lib/customers/customerConsent";
 
 function nextAccountNumber(customers) {
   const nums = customers
@@ -17,12 +19,13 @@ function nextAccountNumber(customers) {
   return `C-${next}`;
 }
 
-export function useCustomers({ onNotify, logActivity }) {
+export function useCustomers({ onNotify, logActivity, accessLogContext }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [listQuery, setListQuery] = useState("");
+  const lastViewedCustomerId = useRef("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -33,6 +36,7 @@ export function useCustomers({ onNotify, logActivity }) {
         await Promise.all(seed.map((row) => savePosCustomer(row)));
         rows = seed;
       }
+      rows = rows.map((row) => ({ ...row, ...normalizeCustomerPrivacy(row) }));
       setCustomers(rows);
       setSelectedCustomerId((prev) => prev || rows[0]?.id || "");
     } catch (e) {
@@ -51,6 +55,24 @@ export function useCustomers({ onNotify, logActivity }) {
     [customers, selectedCustomerId]
   );
 
+  useEffect(() => {
+    if (!selectedCustomerId || selectedCustomerId === lastViewedCustomerId.current) return;
+    lastViewedCustomerId.current = selectedCustomerId;
+    const customer = customers.find((row) => row.id === selectedCustomerId);
+    void logAccessEvent(
+      logActivity,
+      "profile_view",
+      "Customer profile viewed",
+      {
+        customerId: selectedCustomerId,
+        accountNumber: customer?.accountNumber || null,
+        customerType: customer?.type || null,
+        rxLinked: Boolean(customer?.rxProfile?.krollPatientId),
+      },
+      accessLogContext
+    );
+  }, [selectedCustomerId, logActivity, accessLogContext, customers]);
+
   const filteredCustomers = useMemo(() => {
     const hits = searchPosCustomers(customers, listQuery);
     return listQuery.trim() ? hits : customers;
@@ -60,10 +82,13 @@ export function useCustomers({ onNotify, logActivity }) {
     async (customer) => {
       setBusy(true);
       try {
+        const prior = customers.find((row) => row.id === customer.id) || null;
         const next = {
           ...customer,
+          ...normalizeCustomerPrivacy(customer),
           updatedAt: new Date().toISOString(),
         };
+        const consentChanges = diffConsentChanges(prior, next);
         await savePosCustomer(next);
         setCustomers((prev) => {
           const idx = prev.findIndex((row) => row.id === next.id);
@@ -73,7 +98,17 @@ export function useCustomers({ onNotify, logActivity }) {
           return copy;
         });
         setSelectedCustomerId(next.id);
-        logActivity?.("pos.customers.save", { customerId: next.id, accountNumber: next.accountNumber });
+        logActivity?.("pos", "Customer saved", {
+          customerId: next.id,
+          accountNumber: next.accountNumber,
+        });
+        for (const change of consentChanges) {
+          logActivity?.("pos", "Customer consent updated", {
+            customerId: next.id,
+            channel: change.channel,
+            granted: change.granted,
+          });
+        }
         onNotify?.("Customer saved.", "success");
         return next;
       } catch (e) {
@@ -83,7 +118,7 @@ export function useCustomers({ onNotify, logActivity }) {
         setBusy(false);
       }
     },
-    [logActivity, onNotify]
+    [customers, logActivity, onNotify]
   );
 
   const createCustomer = useCallback(
@@ -111,7 +146,7 @@ export function useCustomers({ onNotify, logActivity }) {
         await deletePosCustomer(id);
         setCustomers((prev) => prev.filter((row) => row.id !== id));
         setSelectedCustomerId((prev) => (prev === id ? "" : prev));
-        logActivity?.("pos.customers.delete", { customerId: id });
+        logActivity?.("pos", "Customer removed", { customerId: id });
         onNotify?.("Customer removed.", "success");
       } catch (e) {
         onNotify?.(e.message || "Unable to remove customer.", "error");

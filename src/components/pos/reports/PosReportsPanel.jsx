@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { todayBusinessDate } from "../../../lib/reporting/businessDate";
 import { useReports } from "../../../hooks/useReports";
+import ReportsAccessLogSection from "./ReportsAccessLogSection";
 import ReportsAuditSection from "./ReportsAuditSection";
+import ReportsImmutableAuditSection from "./ReportsImmutableAuditSection";
 import ReportsCashSection from "./ReportsCashSection";
 import ReportsCommonSection from "./ReportsCommonSection";
 import ReportsInventorySection from "./ReportsInventorySection";
@@ -15,6 +17,8 @@ const REPORT_SECTIONS = [
   { id: "inventory", label: "Inventory" },
   { id: "common", label: "Common reports" },
   { id: "audit", label: "Audit logs" },
+  { id: "mustlog", label: "Must-log audit" },
+  { id: "access", label: "Access logs" },
 ];
 
 function businessDateInputValue(businessDate) {
@@ -46,7 +50,8 @@ export default function PosReportsPanel({ onNotify }) {
         <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Reporting &amp; analytics</div>
         <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
           Daily sales · till balancing · cash reconciliation · margins · departments · top items · dead stock ·
-          shrinkage · hourly · employee tracking · audit logs · EOD · cashier audit · categories · vendors ·
+          shrinkage · hourly · employee tracking · audit logs · access logs · EOD · cashier audit · categories ·
+          vendors ·
           valuation
         </div>
         <div
@@ -96,6 +101,8 @@ export default function PosReportsPanel({ onNotify }) {
       {section === "inventory" ? <ReportsInventorySection reports={reports} /> : null}
       {section === "common" ? <ReportsCommonSection reports={reports} /> : null}
       {section === "audit" ? <ReportsAuditSection activities={reports.activities} /> : null}
+      {section === "mustlog" ? <ReportsImmutableAuditSection immutableAudit={reports.immutableAudit} /> : null}
+      {section === "access" ? <ReportsAccessLogSection activities={reports.activities} /> : null}
     </div>
   );
 }

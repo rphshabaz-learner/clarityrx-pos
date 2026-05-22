@@ -1,6 +1,10 @@
 import React, { useState } from "react";
 import { WHOLESALERS } from "../../../lib/purchasing/wholesalers";
 import {
+  AGE_RESTRICTION_CLASS_OPTIONS,
+  AGE_RESTRICTION_CLASSES,
+} from "../../../lib/compliance/ageRestrictedProducts";
+import {
   FRONT_STORE_DEPARTMENTS,
   PRODUCT_STATUS_OPTIONS,
   productDisplayName,
@@ -225,6 +229,22 @@ export default function InventoryProductSection({
                     onChange={(e) => update({ category: e.target.value })}
                     style={{ marginTop: 6, width: "100%" }}
                   />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <FieldLabel>Age restriction</FieldLabel>
+                  <select
+                    className="crx-select"
+                    value={selectedProduct.ageRestrictionClass || "none"}
+                    onChange={(e) => update({ ageRestrictionClass: e.target.value })}
+                    style={{ marginTop: 6, width: "100%", maxWidth: 360 }}
+                  >
+                    <option value="none">{AGE_RESTRICTION_CLASSES.none.label}</option>
+                    {AGE_RESTRICTION_CLASS_OPTIONS.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

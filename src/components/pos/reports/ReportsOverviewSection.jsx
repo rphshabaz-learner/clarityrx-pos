@@ -27,8 +27,12 @@ export default function ReportsOverviewSection({ reports }) {
         <StatChip label="Dead stock SKUs" value={String(reports.deadStock.length)} />
         <StatChip label="Sale history" value={`${sales.length} records`} />
         <StatChip
-          label="Shift"
-          value={reports.shift?.status === "open" ? "Open" : reports.shift ? "Closed" : "None"}
+          label="Till shifts"
+          value={
+            reports.tillShifts?.length
+              ? `${reports.tillShifts.filter((row) => row.status === "open").length} open / ${reports.tillShifts.length}`
+              : "None"
+          }
         />
       </StatRow>
       {daily.transactionCount === 0 ? (

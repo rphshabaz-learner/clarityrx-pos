@@ -10,7 +10,9 @@ Roles with `pos.customers`: admin, pharmacist, relief pharmacist, store manager,
 
 | Section | Features |
 |---------|----------|
-| **Profiles** | Account #, type, contact info, status, attach to till |
+| **Profiles** | Account #, type, contact info, status, attach to till (email/address/DOB for manager/pharmacist roles only) |
+| **Privacy & consent** | Loyalty, marketing, SMS, email, eReceipt consent with timestamps; privacy notice version; access request log |
+| **Privacy & consent** | Loyalty, marketing, SMS, email, and eReceipt consent with date and privacy-notice version |
 | **Loyalty & billing** | Loyalty member ID, points, tier; store charge limit/balance; LTC billing account |
 | **Points history** | Earn, redeem, adjustments |
 | **Purchases** | Linked invoice history |
@@ -31,6 +33,10 @@ Search in the top bar matches customer account #, name, phone, Kroll ID, or bag 
 ## Data storage
 
 Customer records are stored locally in IndexedDB (`pos_customers`, DB version 11). Seed data is created on first open. Production sync with Kroll / head office can be added via transmit API later.
+
+## Privacy (PIPEDA / provincial)
+
+Profiles, loyalty, purchase history, Rx links, and pickup data can contain **personal information** and, where health-related, **health information** under provincial pharmacy privacy law. See [privacy-compliance.md](./privacy-compliance.md) for minimum data collection rules, a data-category map, current POS controls, and recommended gaps.
 
 ## Till attachment
 

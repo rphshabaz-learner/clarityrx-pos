@@ -1,3 +1,4 @@
+import { summarizeAgeComplianceForSale } from "../compliance/ageRestrictedProducts";
 import { computeLineTotal } from "../posSalesRegister";
 import { formatBusinessDate } from "./businessDate";
 
@@ -41,6 +42,11 @@ export function buildCompletedSaleSnapshot({
   tenderedAmount,
   changeDue,
   taxExempt,
+  taxBreakdown = null,
+  taxConfig = null,
+  transactionType = "sale",
+  ageVerifications = null,
+  ageComplianceConfig = null,
 }) {
   const chargedAt = Date.now();
   const lines = normalizeCartLines(cart);
@@ -53,8 +59,8 @@ export function buildCompletedSaleSnapshot({
     businessDate: shift?.businessDate || formatBusinessDate(new Date(chargedAt)),
     shiftId: shift?.id || null,
     tillNumber: Number(tillNumber) || 1,
-    cashierId: user?.id || shift?.cashierId || "",
-    cashierName: user?.fullName || user?.username || shift?.cashierId || "—",
+    cashierId: user?.id || shift?.openedBy || "",
+    cashierName: user?.fullName || user?.username || shift?.openedBy || "—",
     subtotal: Number(totals?.subtotal?.toFixed?.(2) ?? otcSubtotal.toFixed(2)),
     discount: Number(totals?.discount?.toFixed?.(2) ?? 0),
     couponDiscount: Number(totals?.couponDiscount?.toFixed?.(2) ?? 0),
@@ -68,7 +74,17 @@ export function buildCompletedSaleSnapshot({
     changeDue: Number(changeDue?.toFixed?.(2) ?? 0),
     taxExempt: Boolean(taxExempt),
     demographic: demographicLabel || "",
+    transactionType: String(transactionType || "sale").toLowerCase(),
+    provinceCode: taxBreakdown?.provinceCode || taxConfig?.provinceCode || null,
+    businessNumber: taxConfig?.businessNumber || null,
+    taxPricingMode: taxBreakdown?.pricingMode || taxConfig?.pricingMode || null,
+    taxBreakdown: taxBreakdown || null,
+    taxGST: Number(taxBreakdown?.GST?.toFixed?.(2) ?? 0),
+    taxHST: Number(taxBreakdown?.HST?.toFixed?.(2) ?? 0),
+    taxPST: Number(taxBreakdown?.PST?.toFixed?.(2) ?? 0),
+    taxQST: Number(taxBreakdown?.QST?.toFixed?.(2) ?? 0),
     lineCount: lines.length,
     lines,
+    ageCompliance: summarizeAgeComplianceForSale(cart, ageVerifications || {}, ageComplianceConfig || {}),
   };
 }

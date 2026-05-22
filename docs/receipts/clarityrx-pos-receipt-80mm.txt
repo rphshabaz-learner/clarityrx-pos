@@ -7,6 +7,7 @@
 *** REPRINT ***
 RECEIPT #: FS-00099749
 DATE:      2026-05-21    TIME: 03:40 PM
+BN:        123456789 RT0001
 STORE:     TRAIL-01      TERMINAL: POS-03
 SHIFT:     S-20260521-02 CASHIER: PHARM T
 TYPE:      SALE          CUSTOMER ID: 996
@@ -31,7 +32,9 @@ PST                                  $0.00
 TOTAL                                $0.00
 ==========================================
 PAYMENT
-CASH                                 $0.00
+VISA **** **** **** 4242
+AUTH A1B2C3              ENTRY CHIP
+TOTAL                                $0.00
 CHANGE DUE                           $0.00
 ==========================================
 LOYALTY

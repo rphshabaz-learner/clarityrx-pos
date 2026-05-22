@@ -7,7 +7,7 @@ The **Self Checkout** tab provides a customer-facing kiosk flow and staff config
 | Section | Purpose |
 |---------|---------|
 | **Scan-and-pay** | Run the kiosk session: scan barcodes/SKU, review cart, checkout |
-| **Payment** | Kiosk till number, pinpad terminal ID, customer payment prompt |
+| **Payment** | Kiosk till number, pinpad terminal ID, idle timeout (PCI session reset), customer payment prompt |
 | **Receipt options** | Default and offered receipt methods (print, email, SMS, none); session history |
 | **Loyalty entry** | Kiosk loyalty prompt, skip option, redeem cap; test customer lookup |
 
@@ -18,6 +18,8 @@ The **Self Checkout** tab provides a customer-facing kiosk flow and staff config
 3. **Payment** — Debit or Credit Card; Securelink pinpad when `REACT_APP_SECURELINK_ENABLED=1`.
 4. **Receipt** — customer selects print, email, text, or no receipt.
 5. **Complete** — `POST /pos/complete-sale`, inventory transmit, local completed-sale row (`channel: self_checkout`).
+
+Active kiosk sessions end automatically after **idle timeout** seconds (default 120, minimum 30) with no pointer/keyboard/touch activity. Configure under **Payment**; see [pci-dss-payment-security.md](./pci-dss-payment-security.md).
 
 ## Permissions
 

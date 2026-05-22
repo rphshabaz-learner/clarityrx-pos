@@ -22,13 +22,14 @@ const RX_SECTIONS = [
 export default function PosRxIntegrationPanel({
   onNotify,
   logActivity,
+  accessLogContext,
   onAttachPickup,
   onAttachCustomer,
   onOpenSales,
   onOpenCustomers,
 }) {
   const [section, setSection] = useState("kroll");
-  const rx = useRxIntegration({ onNotify, logActivity });
+  const rx = useRxIntegration({ onNotify, logActivity, accessLogContext });
 
   if (rx.loading) {
     return (

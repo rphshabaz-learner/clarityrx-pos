@@ -3,6 +3,7 @@ import { useCustomers } from "../../../hooks/useCustomers";
 import { CUSTOMER_TYPE } from "../../../lib/customers/customerTypes";
 import CustomersAccountsSection from "./CustomersAccountsSection";
 import CustomersComplianceSection from "./CustomersComplianceSection";
+import CustomersConsentSection from "./CustomersConsentSection";
 import CustomersHistorySection from "./CustomersHistorySection";
 import CustomersPharmacySection from "./CustomersPharmacySection";
 import CustomersPricingSection from "./CustomersPricingSection";
@@ -10,6 +11,7 @@ import CustomersProfilesSection from "./CustomersProfilesSection";
 
 const CUSTOMER_SECTIONS = [
   { id: "profiles", label: "Profiles" },
+  { id: "consent", label: "Privacy & consent" },
   { id: "accounts", label: "Loyalty & billing" },
   { id: "points", label: "Points history" },
   { id: "purchases", label: "Purchases" },
@@ -21,6 +23,7 @@ const CUSTOMER_SECTIONS = [
 export default function PosCustomersPanel({
   onNotify,
   logActivity,
+  accessLogContext,
   onAttachToTill,
   onAttachPickup,
   initialSection,
@@ -42,7 +45,7 @@ export default function PosCustomersPanel({
     createCustomer,
     removeCustomer,
     stats,
-  } = useCustomers({ onNotify, logActivity });
+  } = useCustomers({ onNotify, logActivity, accessLogContext });
 
   const setSectionAndNotify = (next) => {
     setSection(next);
@@ -108,6 +111,7 @@ export default function PosCustomersPanel({
       </div>
 
       {section === "profiles" ? <CustomersProfilesSection {...sidebarProps} /> : null}
+      {section === "consent" ? <CustomersConsentSection {...sidebarProps} /> : null}
       {section === "accounts" ? <CustomersAccountsSection {...sidebarProps} /> : null}
       {section === "points" ? <CustomersHistorySection {...sidebarProps} mode="points" /> : null}
       {section === "purchases" ? <CustomersHistorySection {...sidebarProps} mode="purchases" /> : null}

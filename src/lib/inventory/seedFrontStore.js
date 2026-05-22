@@ -32,6 +32,7 @@ export function buildSeedFrontStoreProducts() {
       retail: Number(row.price) || 0,
       onHand: Number(row.stock) || 0,
       vendorId: index % 2 === 0 ? "mckesson" : "kohl_frisch",
+      ageRestrictionClass: row.ageRestrictionClass || base.ageRestrictionClass,
       createdAt: base.createdAt,
       updatedAt: base.updatedAt,
     };

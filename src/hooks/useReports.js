@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   activityList,
   getAllPurchaseOrders,
+  immutableAuditList,
   listCompletedSales,
   listDamagedGoods,
   listFrontStoreProducts,
 } from "../lib/clarityIndexedDb";
-import { getActiveShift } from "../lib/posShift";
+import { listTillShiftsForBusinessDate } from "../lib/posShift";
 import { todayBusinessDate, formatBusinessDateLabel } from "../lib/reporting/businessDate";
 import {
   aggregateCashReconciliation,
@@ -18,6 +19,7 @@ import {
   aggregateProfitMargins,
   aggregateShrinkage,
   aggregateTillBalancing,
+  sumTillBalanceRows,
   buildCashierAudit,
   buildEndOfDayReport,
   computeInventoryValuation,
@@ -34,39 +36,47 @@ export function useReports({ onNotify } = {}) {
   const [orders, setOrders] = useState([]);
   const [damaged, setDamaged] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [shift, setShift] = useState(() => getActiveShift());
+  const [immutableAudit, setImmutableAudit] = useState([]);
+  const [tillShifts, setTillShifts] = useState(() => listTillShiftsForBusinessDate(todayBusinessDate()));
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [saleRows, productRows, orderRows, damagedRows, activityRows] = await Promise.all([
+      const [saleRows, productRows, orderRows, damagedRows, activityRows, auditRows] = await Promise.all([
         listCompletedSales(),
         listFrontStoreProducts(),
         getAllPurchaseOrders(),
         listDamagedGoods(),
         activityList(500),
+        immutableAuditList(500),
       ]);
       setSales(saleRows);
       setProducts(productRows);
       setOrders(orderRows);
       setDamaged(damagedRows);
       setActivities(activityRows);
-      setShift(getActiveShift());
+      setImmutableAudit(auditRows);
+      setTillShifts(listTillShiftsForBusinessDate(businessDate));
     } catch (e) {
       onNotify?.(e.message || "Unable to load reporting data.", "error");
     } finally {
       setLoading(false);
     }
-  }, [onNotify]);
+  }, [businessDate, onNotify]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    setTillShifts(listTillShiftsForBusinessDate(businessDate));
+  }, [businessDate]);
+
   const metrics = useMemo(() => {
     const daily = aggregateDailySales(sales, businessDate);
     const hourly = aggregateHourlySales(sales, businessDate);
     const tillBalancing = aggregateTillBalancing(sales, businessDate);
+    const tillBalancingCombined = sumTillBalanceRows(tillBalancing);
     const cashReconciliation = aggregateCashReconciliation(sales, businessDate);
     const profitMargins = aggregateProfitMargins(products);
     const departmentPerformance = aggregateDepartmentPerformance(sales, products, businessDate);
@@ -77,8 +87,8 @@ export function useReports({ onNotify } = {}) {
     const categoryPerformance = aggregateCategoryPerformance(sales, businessDate);
     const vendorPurchases = summarizeVendorPurchases(orders);
     const inventoryValuation = computeInventoryValuation(products);
-    const endOfDay = buildEndOfDayReport(sales, shift, activities);
-    const cashierAudit = buildCashierAudit(sales, shift, activities, shift?.cashierId);
+    const endOfDay = buildEndOfDayReport(sales, tillShifts, activities, businessDate);
+    const cashierAudit = buildCashierAudit(sales, tillShifts[0] || null, activities, null);
 
     const avgMargin =
       profitMargins.length > 0
@@ -90,6 +100,7 @@ export function useReports({ onNotify } = {}) {
       daily,
       hourly,
       tillBalancing,
+      tillBalancingCombined,
       cashReconciliation,
       profitMargins,
       avgMargin,
@@ -104,7 +115,7 @@ export function useReports({ onNotify } = {}) {
       endOfDay,
       cashierAudit,
     };
-  }, [sales, products, orders, damaged, activities, shift, businessDate]);
+  }, [sales, products, orders, damaged, activities, tillShifts, businessDate]);
 
   return {
     loading,
@@ -116,7 +127,8 @@ export function useReports({ onNotify } = {}) {
     orders,
     damaged,
     activities,
-    shift,
+    immutableAudit,
+    tillShifts,
     refresh,
     ...metrics,
   };

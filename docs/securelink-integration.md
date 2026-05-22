@@ -20,8 +20,8 @@ Mock mode auto-approves after ~1s (development only).
 ## Till setup
 
 1. Open **Manage → Till options**.
-2. Set **Securelink terminal prefix** (default `POS-`). Till 3 maps to `POS-03`.
-3. Ensure the physical pinpad is registered to that terminal id in your processor portal.
+2. Under **Pinpad terminal mapping**, set each till’s terminal ID (defaults use prefix `POS-`: till 1 → `POS-01`, till 10 → `POS-10`). Override any row when your processor uses non-standard ids.
+3. Ensure each physical pinpad is registered to the matching terminal id in your processor portal.
 
 ## Checkout flow
 
@@ -78,6 +78,10 @@ Existing `POST /pos/complete-sale` body may include:
 ```
 
 Store these fields on the sale record and print them on customer/merchant copies when **Print merchant copy for card payments** is enabled.
+
+Receipts must show the masked PAN only (`**** **** **** 1234`) plus auth/brand/entry — never CVV, full PAN, or expiry. See [receipt-rules.md](./receipt-rules.md). The till sanitizes `cardPayment` via `sanitizeCardPaymentForStorage()` before `complete-sale`. Use `formatReceiptCardLines` from `src/lib/pci/cardDisplay.js` so customer copies never show a full PAN.
+
+PCI scope and operational checklist: [pci-dss-payment-security.md](./pci-dss-payment-security.md).
 
 ## Processor notes
 
