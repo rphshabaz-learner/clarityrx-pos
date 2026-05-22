@@ -1,4 +1,6 @@
 const LOCAL_API_BASE_URL = "http://localhost:4000/api";
+const RUNTIME_API_BASE_URL_KEY = "clarityrx-pos-api-base-url";
+const RUNTIME_PACKAGING_SOCKET_URL_KEY = "clarityrx-pos-packaging-socket-url";
 
 function trimTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -12,12 +14,57 @@ export function normalizeApiBaseUrl(value) {
   return trimTrailingSlash(value);
 }
 
+function readSearchParam(name) {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get(name) || "";
+}
+
+function readRuntimeOverride(key) {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(key) || "";
+}
+
+export function getRuntimeApiBaseUrlOverride() {
+  return normalizeApiBaseUrl(readRuntimeOverride(RUNTIME_API_BASE_URL_KEY));
+}
+
+export function getRuntimePackagingSocketUrlOverride() {
+  return normalizeApiBaseUrl(readRuntimeOverride(RUNTIME_PACKAGING_SOCKET_URL_KEY));
+}
+
+export function saveRuntimeBackendConfig({ apiBaseUrl, packagingSocketUrl }) {
+  if (typeof window === "undefined") return;
+  const normalizedApiBaseUrl = normalizeApiBaseUrl(apiBaseUrl);
+  const normalizedSocketUrl = normalizeApiBaseUrl(packagingSocketUrl);
+  if (normalizedApiBaseUrl) {
+    window.localStorage.setItem(RUNTIME_API_BASE_URL_KEY, normalizedApiBaseUrl);
+  } else {
+    window.localStorage.removeItem(RUNTIME_API_BASE_URL_KEY);
+  }
+  if (normalizedSocketUrl) {
+    window.localStorage.setItem(RUNTIME_PACKAGING_SOCKET_URL_KEY, normalizedSocketUrl);
+  } else {
+    window.localStorage.removeItem(RUNTIME_PACKAGING_SOCKET_URL_KEY);
+  }
+}
+
+export function clearRuntimeBackendConfig() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(RUNTIME_API_BASE_URL_KEY);
+  window.localStorage.removeItem(RUNTIME_PACKAGING_SOCKET_URL_KEY);
+}
+
 function allowsSameOriginApiFallback() {
   return process.env.REACT_APP_SAME_ORIGIN_API === "1" || process.env.NEXT_PUBLIC_SAME_ORIGIN_API === "1";
 }
 
 export function resolveApiBaseUrl() {
-  const configured = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.REACT_APP_API_BASE_URL;
+  const configured =
+    readSearchParam("apiBaseUrl") ||
+    readSearchParam("api") ||
+    getRuntimeApiBaseUrlOverride() ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.REACT_APP_API_BASE_URL;
   if (configured) {
     return normalizeApiBaseUrl(configured);
   }
@@ -39,7 +86,12 @@ export function resolvePackagingApiBaseUrl() {
 }
 
 export function resolvePackagingSocketUrl(packagingApiBaseUrl = resolvePackagingApiBaseUrl()) {
-  const configured = process.env.NEXT_PUBLIC_PACKAGING_SOCKET_URL || process.env.REACT_APP_PACKAGING_SOCKET_URL;
+  const configured =
+    readSearchParam("packagingSocketUrl") ||
+    readSearchParam("socket") ||
+    getRuntimePackagingSocketUrlOverride() ||
+    process.env.NEXT_PUBLIC_PACKAGING_SOCKET_URL ||
+    process.env.REACT_APP_PACKAGING_SOCKET_URL;
   if (configured) {
     return normalizeApiBaseUrl(configured);
   }
