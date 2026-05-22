@@ -75,7 +75,7 @@ export default function PosManagePanel({
             checked={printMerchantCopy}
             onChange={(e) => setPrintMerchantCopy(e.target.checked)}
           />
-          Print merchant copy for card payments (Finestra: disable when unchecked)
+          Print merchant copy for card payments
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", marginTop: 10 }}>
           <input
