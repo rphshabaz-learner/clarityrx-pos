@@ -37,17 +37,8 @@ export default function PosDemographicBar({
             <button
               key={option.id}
               type="button"
+              className={`crx-demographic-chip${active ? " active" : ""}`}
               onClick={() => onSelect(option.id)}
-              style={{
-                border: active ? "2px solid #1447e6" : "1px solid #e5e7eb",
-                background: active ? "#eff6ff" : "#fff",
-                color: active ? "#1447e6" : "#374151",
-                borderRadius: 8,
-                padding: "6px 12px",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
             >
               {option.label}
               {isDefault ? " · default" : ""}
