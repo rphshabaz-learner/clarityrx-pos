@@ -1,8 +1,4 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "build",
-  "env": {
-    "REACT_APP_API_BASE_URL": "https://clarityrx-ng0b4vhex-rphshabaz-learners-projects.vercel.app/api",
-    "REACT_APP_PACKAGING_SOCKET_URL": "https://clarityrx-ng0b4vhex-rphshabaz-learners-projects.vercel.app"
-  }
+  "outputDirectory": "build"
 }
