@@ -22,7 +22,7 @@
     "start": "PORT=3001 react-scripts start",
     "prebuild": "npm run build:css",
     "build": "react-scripts build",
-    "build:css": "tailwindcss -i ./src/index.css -o ./src/index.build.css",
+    "build:css": "tailwindcss -i ./src/index.css -o ./src/index.build.css && node scripts/patch-tailwind-infinity.js",
     "test": "react-scripts test"
   },
   "eslintConfig": {
