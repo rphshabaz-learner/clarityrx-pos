@@ -44,6 +44,10 @@ npm run desktop:pos
 
 Loads `http://localhost:3001` in the Electron shell.
 
+## Touch-screen till
+
+Use a touch-capable monitor or AIO PC. The POS layout uses finger-sized controls (44px+ targets), `touch-action: manipulation` to reduce tap delay, and active-state styling so buttons work without a mouse. Barcode scanners still work as keyboard input into scan/search fields.
+
 ## Architecture
 
 - Entry: `src/apps/pos/PosApp.jsx`
