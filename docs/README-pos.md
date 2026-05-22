@@ -65,6 +65,10 @@ Workspace tab **Purchasing** — POs, EDI submit, receive (inventory sync), repl
 
 Workspace tab **Customers** — profiles, loyalty, store charge, LTC billing, purchase/points history, special pricing, senior discounts, tax exemption, Kroll/Rx link, pickup tracking, care homes. See [customer-management.md](./customer-management.md).
 
+## Rx integration
+
+Workspace tab **Rx Integration** — Kroll connection, pickup sync, Rx payment posting, combined Rx + retail receipts, prescription status lookup, patient account charging, delivery/payment matching. See [rx-integration.md](./rx-integration.md).
+
 ## Securelink (integrated card)
 
 When `REACT_APP_SECURELINK_ENABLED=1`, Debit and Credit Card charges use the pinpad before `complete-sale`. See [securelink-integration.md](./securelink-integration.md).

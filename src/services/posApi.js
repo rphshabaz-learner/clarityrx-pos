@@ -99,3 +99,44 @@ export async function fetchPosHealth(accessToken) {
   );
   return parseJson(response);
 }
+
+/** Prescription status from Kroll / pharmacy transmit (falls back to local cache in UI). */
+export async function lookupRxStatus(query, accessToken) {
+  const encoded = encodeURIComponent(String(query || "").trim());
+  if (!encoded) return null;
+  const response = await fetchBackend(
+    `${TRANSMIT_API_BASE}/pos/rx/lookup?query=${encoded}`,
+    { headers: transmitHeaders(accessToken) },
+    TRANSMIT_API_BASE
+  );
+  const payload = await parseJson(response);
+  return payload?.rx || payload?.prescription || payload || null;
+}
+
+/** Post Rx copay / pickup payment back to Kroll after POS charge. */
+export async function postRxPayment(body, accessToken) {
+  const response = await fetchBackend(
+    `${TRANSMIT_API_BASE}/pos/rx/post-payment`,
+    {
+      method: "POST",
+      headers: transmitHeaders(accessToken),
+      body: JSON.stringify(body),
+    },
+    TRANSMIT_API_BASE
+  );
+  return parseJson(response);
+}
+
+/** Request pickup queue refresh from pharmacy packaging / Kroll bridge. */
+export async function syncPosPickups(accessToken) {
+  const response = await fetchBackend(
+    `${TRANSMIT_API_BASE}/pos/pickups/sync`,
+    {
+      method: "POST",
+      headers: transmitHeaders(accessToken),
+      body: JSON.stringify({}),
+    },
+    TRANSMIT_API_BASE
+  );
+  return parseJson(response);
+}

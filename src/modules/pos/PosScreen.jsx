@@ -9,6 +9,7 @@ import PosPromotionsPanel from "../../components/pos/promotions/PosPromotionsPan
 import PosCustomersPanel from "../../components/pos/customers/PosCustomersPanel";
 import PosPurchasingPanel from "../../components/pos/purchasing/PosPurchasingPanel";
 import PosReportsPanel from "../../components/pos/reports/PosReportsPanel";
+import PosRxIntegrationPanel from "../../components/pos/rx/PosRxIntegrationPanel";
 import { customerDisplayName } from "../../lib/customers/customerTypes";
 import PosSalesRegisterPanel from "../../components/pos/sales/PosSalesRegisterPanel";
 import {
@@ -32,11 +33,13 @@ import { isSecurelinkEnabled, resolveSecurelinkTerminalId } from "../../lib/secu
 import { appendCompletedSale } from "../../lib/clarityIndexedDb";
 import { getActiveShift } from "../../lib/posShift";
 import { buildCompletedSaleSnapshot } from "../../lib/reporting/saleSnapshot";
+import { enqueueRxPaymentFromSale } from "../../lib/rx/paymentQueue";
 import { completePosSale, lookupPosPickup, transmitInventoryAdjustments } from "../../services/posApi";
 import { POS_DEFAULT_CART, POS_FRONT_STORE_ITEMS } from "./posCatalog";
 
 const POS_WORKSPACE_TABS = [
   { id: "till", label: "Sales" },
+  { id: "rx", label: "Rx Integration" },
   { id: "customers", label: "Customers" },
   { id: "purchasing", label: "Purchasing" },
   { id: "promotions", label: "Promotions" },
@@ -106,6 +109,7 @@ export default function PosScreen() {
   const canPromotions = hasPermission("pos.promotions");
   const canCustomers = hasPermission("pos.customers");
   const canReports = hasPermission("pos.reports");
+  const canRx = hasPermission("pos.rx");
 
   const [workspaceTab, setWorkspaceTab] = useState("till");
   const [activeCustomer, setActiveCustomer] = useState(null);
@@ -482,6 +486,17 @@ export default function PosScreen() {
     });
   }, [logActivity, pushHeaderAlert, selectedTillNumber]);
 
+  const handleAttachCustomerById = useCallback(
+    async (customerId) => {
+      const { listPosCustomers } = await import("../../lib/clarityIndexedDb");
+      const rows = await listPosCustomers();
+      const hit = rows.find((row) => row.id === customerId);
+      if (hit) handleAttachCustomerToTill(hit);
+      else setToast({ message: "Customer not found.", type: "warning" });
+    },
+    [handleAttachCustomerToTill]
+  );
+
   const accountCustomerLabel = activeCustomer
     ? `${customerDisplayName(activeCustomer)} · ${activeCustomer.accountNumber || ""}`
     : "";
@@ -696,12 +711,30 @@ export default function PosScreen() {
           shift: getActiveShift(),
           user,
           rxCopay,
+          pickupId: selectedPickup?.id || null,
           demographicLabel,
           tenderedAmount: Number.isFinite(numericTenderedAmount) ? numericTenderedAmount : null,
           changeDue,
           taxExempt,
         });
         await appendCompletedSale(saleSnapshot);
+        if (rxCopay > 0 || selectedPickup?.id) {
+          try {
+            await enqueueRxPaymentFromSale({
+              invoiceNumber: result.invoiceNumber,
+              pickupId: selectedPickup?.id || null,
+              rxCopay,
+              otcTotal: otcSubtotal,
+              payMethod: splitEnabled ? "Split" : payMethod,
+              tillNumber: selectedTillNumber,
+              customerAccount: activeCustomer?.accountNumber || null,
+              krollPatientId: activeCustomer?.rxProfile?.krollPatientId || null,
+              rxNumbers: selectedPickup?.rxNumbers || [],
+            });
+          } catch (queueError) {
+            console.warn("rx payment queue", queueError?.message || queueError);
+          }
+        }
       } catch (reportError) {
         console.warn("completed sale snapshot", reportError?.message || reportError);
       }
@@ -867,6 +900,7 @@ export default function PosScreen() {
           if (tab.id === "promotions" && !canPromotions) return false;
           if (tab.id === "customers" && !canCustomers) return false;
           if (tab.id === "reports" && !canReports) return false;
+          if (tab.id === "rx" && !canRx) return false;
           return true;
         }).map((tab) => (
           <button
@@ -895,6 +929,20 @@ export default function PosScreen() {
           demographicConfig={demographicConfig}
           onSaveFavorites={handleSaveFavorites}
           onSaveDemographics={handleSaveDemographics}
+        />
+      ) : null}
+
+      {workspaceTab === "rx" ? (
+        <PosRxIntegrationPanel
+          onNotify={(message, type) => setToast({ message, type: type || "info" })}
+          logActivity={logActivity}
+          onAttachPickup={handleAttachPickup}
+          onAttachCustomer={handleAttachCustomerById}
+          onOpenSales={() => setWorkspaceTab("till")}
+          onOpenCustomers={() => {
+            setCustomersPanelSection("pharmacy");
+            setWorkspaceTab("customers");
+          }}
         />
       ) : null}
 
