@@ -1,7 +1,7 @@
 import React from "react";
 
 /**
- * Customer type strip: pick customer type or use default without prompting.
+ * Customer type strip: pick customer type or set default.
  */
 export default function PosDemographicBar({
   options,
