@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { groupFavoritesByTab } from "../../lib/posFavorites";
 
 /**
- * Finestra Favorites: custom tabs with image tiles for quick till access.
+ * Favorites: custom tabs with image tiles for quick till access.
  */
 export default function PosFavoritesPanel({ tabs, items, onAddItem }) {
   const grouped = useMemo(() => groupFavoritesByTab(tabs, items), [tabs, items]);
