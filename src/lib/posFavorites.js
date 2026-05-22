@@ -3,6 +3,16 @@ import { scopedStorageKey } from "../session/scopedStorage";
 export const POS_FAVORITES_STORAGE_KEY = "clarityrx-pos-favorites-v1";
 export const POS_DEMOGRAPHICS_STORAGE_KEY = "clarityrx-pos-demographics-v1";
 
+export const DEFAULT_TILL_OPTIONS = {
+  printMerchantCopy: true,
+  taxRate: 0.05,
+  defaultDiscountType: "none",
+  defaultDiscountValue: 0,
+  collectSaleNotes: true,
+  promptForBag: true,
+  quickTenderAmounts: [10, 20, 50, 100],
+};
+
 /** Finestra-style customer types (default skips till prompt when enabled). */
 export const DEFAULT_DEMOGRAPHICS = [
   { id: "general", label: "General Customer" },
@@ -61,8 +71,29 @@ export function loadPosDemographicConfig() {
   const options = Array.isArray(parsed?.options) && parsed.options.length ? parsed.options : DEFAULT_DEMOGRAPHICS;
   const defaultId = parsed?.defaultId || options[0]?.id || "general";
   const skipPrompt = Boolean(parsed?.skipPrompt ?? true);
-  const printMerchantCopy = parsed?.printMerchantCopy !== false;
-  return { options, defaultId, skipPrompt, printMerchantCopy };
+  const quickTenderAmounts = Array.isArray(parsed?.quickTenderAmounts) && parsed.quickTenderAmounts.length
+    ? parsed.quickTenderAmounts.map((amount) => Number(amount)).filter((amount) => Number.isFinite(amount) && amount > 0)
+    : DEFAULT_TILL_OPTIONS.quickTenderAmounts;
+  const taxRate = Number.isFinite(Number(parsed?.taxRate)) ? Number(parsed.taxRate) : DEFAULT_TILL_OPTIONS.taxRate;
+  const defaultDiscountValue = Number.isFinite(Number(parsed?.defaultDiscountValue))
+    ? Math.max(0, Number(parsed.defaultDiscountValue))
+    : DEFAULT_TILL_OPTIONS.defaultDiscountValue;
+  const defaultDiscountType = ["none", "percent", "amount"].includes(parsed?.defaultDiscountType)
+    ? parsed.defaultDiscountType
+    : DEFAULT_TILL_OPTIONS.defaultDiscountType;
+
+  return {
+    options,
+    defaultId,
+    skipPrompt,
+    printMerchantCopy: parsed?.printMerchantCopy !== false,
+    taxRate: Math.max(0, taxRate),
+    defaultDiscountType,
+    defaultDiscountValue,
+    collectSaleNotes: parsed?.collectSaleNotes !== false,
+    promptForBag: parsed?.promptForBag !== false,
+    quickTenderAmounts,
+  };
 }
 
 export function savePosDemographicConfig(config) {
@@ -77,6 +108,17 @@ export function favoriteItemToCartLine(item) {
     qty: 1,
     price: Number(item.price) || 0,
     source: "favorites",
+  };
+}
+
+export function serviceItemToCartLine({ sku, name, price }) {
+  return {
+    sku,
+    name,
+    category: "Services",
+    qty: 1,
+    price: Number(price) || 0,
+    source: "service",
   };
 }
 
