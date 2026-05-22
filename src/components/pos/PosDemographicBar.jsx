@@ -9,10 +9,11 @@ export default function PosDemographicBar({
   defaultId,
   onSelect,
   onSetDefault,
+  className = "",
 }) {
   return (
     <div
-      className="crx-card"
+      className={`crx-card crx-demographic-bar${className ? ` ${className}` : ""}`}
       style={{
         padding: "10px 14px",
         display: "flex",

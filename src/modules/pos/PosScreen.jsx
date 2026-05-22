@@ -870,10 +870,13 @@ export default function PosScreen() {
     setToast({ message: "Till options saved.", type: "success" });
   };
 
+  const isCashierView = workspaceTab === "till";
+
   return (
-    <div className="crx-content screen-enter">
+    <div className={`crx-content screen-enter${isCashierView ? " crx-content--cashier" : ""}`}>
       {managerOverrideActive ? (
         <div
+          className={isCashierView ? "crx-manager-banner" : undefined}
           style={{
             marginBottom: 12,
             padding: "10px 14px",
@@ -897,7 +900,7 @@ export default function PosScreen() {
         onSetDefault={(id) => persistDemographics({ ...demographicConfig, defaultId: id })}
       />
 
-      <div className="crx-tabs" style={{ marginBottom: 16 }}>
+      <div className={`crx-tabs${isCashierView ? " crx-tabs--large" : ""}`} style={isCashierView ? undefined : { marginBottom: 16 }}>
         {POS_WORKSPACE_TABS.filter((tab) => {
           if (tab.id === "purchasing" && !canPurchasing) return false;
           if (tab.id === "promotions" && !canPromotions) return false;
@@ -910,7 +913,7 @@ export default function PosScreen() {
           <button
             key={tab.id}
             type="button"
-            className={`crx-tab${workspaceTab === tab.id ? " active" : ""}`}
+            className={`crx-tab${isCashierView ? " crx-tab--large" : ""}${workspaceTab === tab.id ? " active" : ""}`}
             onClick={() => setWorkspaceTab(tab.id)}
           >
             {tab.label}
@@ -990,6 +993,7 @@ export default function PosScreen() {
       ) : null}
 
       {workspaceTab === "till" ? (
+        <div className="crx-cashier-register">
         <PosSalesRegisterPanel
           cart={cart}
           selectedPickup={selectedPickup}
@@ -1061,6 +1065,7 @@ export default function PosScreen() {
           quickServiceItems={QUICK_SERVICE_ITEMS}
           onAddServiceItem={addServiceItem}
         />
+        </div>
       ) : null}
 
       {toast ? <PosToast message={toast.message} type={toast.type} onClose={() => setToast(null)} /> : null}

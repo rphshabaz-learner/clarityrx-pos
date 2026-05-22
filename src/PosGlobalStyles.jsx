@@ -9,6 +9,19 @@ html, body, #root { height: 100%; background: #f3f6fb; font-family: 'Plus Jakart
 @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 .screen-enter { animation: fadeUp 0.28s ease; }
 .crx-content { flex: 1; overflow-y: auto; padding: 28px; min-height: 0; }
+.crx-content--cashier { display: flex; flex-direction: column; overflow: hidden; padding: 10px 14px 12px; }
+.crx-content--cashier .crx-demographic-bar { margin-bottom: 8px; padding: 8px 12px; }
+.crx-content--cashier .crx-tabs--large { flex-shrink: 0; margin-bottom: 10px; }
+.crx-content--cashier .crx-cashier-register { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.crx-content--cashier .crx-manager-banner { flex-shrink: 0; margin-bottom: 8px; }
+.crx-tabs--large { display: flex; flex-wrap: wrap; gap: 8px; border-bottom: none; margin-bottom: 14px; padding: 0; }
+.crx-tabs--large .crx-tab--large { padding: 14px 20px; font-size: 15px; font-weight: 800; min-height: 52px; border-radius: 12px; border: 2px solid #e5e7eb; background: #fff; margin-bottom: 0; border-bottom-width: 2px; color: #64748b; }
+.crx-tabs--large .crx-tab--large.active { color: #1447e6; background: #eff6ff; border-color: #1447e6; }
+.crx-tabs--large .crx-tab--large:hover:not(.active) { color: #374151; background: #f8fafc; }
+.crx-sales-options-modal { max-width: 480px; }
+.crx-sales-options-modal__grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.crx-sales-options-modal__field span { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #6b7280; margin-bottom: 6px; }
+.crx-sales-options-modal__pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .crx-card { background:#fff;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 8px 28px rgba(15,23,42,0.045); }
 .crx-card-header { padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:14px; }
 .crx-card-title { font-size:14px;font-weight:800;color:#111827;letter-spacing:-0.01em; }
@@ -101,7 +114,19 @@ html, .crx-pos-app, .crx-pos-auth { touch-action: manipulation; -webkit-text-siz
 .crx-icon-btn:active { background: #f3f4f6; color: #6b7280; }
 .crx-charge-btn { width: 100%; justify-content: center; padding: 13px; font-size: 15px; border-radius: 10px; min-height: 48px; }
 .crx-sales-register { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.85fr); gap: 16px; align-items: start; }
+.crx-cashier-register .crx-sales-register--fit { flex: 1; min-height: 0; height: 100%; }
+.crx-sales-register--fit { flex: 1; min-height: 0; align-items: stretch; overflow: hidden; gap: 12px; }
+.crx-sales-register--fit .crx-sales-register__left { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
+.crx-sales-register--fit .crx-sales-register__right { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; overflow: hidden; }
+.crx-sales-register--fit .crx-sales-register__right-scroll { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; }
 .crx-sales-register__left, .crx-sales-register__right { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.crx-sales-cart--fill { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.crx-sales-cart--fill .crx-card-header { flex-shrink: 0; }
+.crx-sales-cart__scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.crx-sales-totals--compact { flex-shrink: 0; }
+.crx-sales-totals--compact .crx-sales-totals__breakdown { margin-top: 0; }
+.crx-sales-totals__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.crx-sales-totals__badge { font-size: 11px; font-weight: 700; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 4px 8px; }
 .crx-sales-scan { padding: 14px 18px; }
 .crx-sales-scan__row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .crx-sales-scan__label { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 6px; }
@@ -160,6 +185,7 @@ html, .crx-pos-app, .crx-pos-auth { touch-action: manipulation; -webkit-text-siz
 @media (pointer: coarse) {
   .btn-primary, .btn-secondary { min-height: 44px; padding: 11px 18px; font-size: 14px; }
   .crx-tab { padding: 13px 18px; font-size: 14px; min-height: 44px; }
+  .crx-tabs--large .crx-tab--large { min-height: 56px; padding: 16px 22px; font-size: 16px; }
   .pay-opt { min-height: 52px; padding: 14px; font-size: 13px; }
   .crx-input, .crx-select { min-height: 44px; font-size: 15px; padding: 11px 14px; }
   .crx-pos-app input[type="checkbox"], .crx-pos-auth input[type="checkbox"] { width: 22px; height: 22px; }

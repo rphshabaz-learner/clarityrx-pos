@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { POS_FRONT_STORE_ITEMS } from "../../../modules/pos/posCatalog";
 import {
   filterCatalogByDepartment,
@@ -22,6 +22,116 @@ function TouchTile({ label, sublabel, onClick, disabled, emoji }) {
       <span className="crx-sales-tile__label">{label}</span>
       {sublabel ? <span className="crx-sales-tile__sublabel">{sublabel}</span> : null}
     </button>
+  );
+}
+
+function SaleOptionsModal({
+  discountType,
+  discountValue,
+  onDiscountTypeChange,
+  onDiscountValueChange,
+  couponCode,
+  onCouponCodeChange,
+  onApplyCoupon,
+  couponHint,
+  loyaltyPoints,
+  onLoyaltyPointsChange,
+  taxExempt,
+  onTaxExemptChange,
+  saleNote,
+  onSaleNoteChange,
+  collectSaleNotes,
+  onClose,
+}) {
+  return (
+    <div
+      className="crx-pos-header__modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Sale options"
+      onClick={onClose}
+    >
+      <div
+        className="crx-pos-header__modal crx-sales-options-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Sale options</div>
+        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>
+          Discounts, coupons, loyalty, tax, and notes for this transaction.
+        </p>
+        <div className="crx-sales-options-modal__grid">
+          <label className="crx-sales-options-modal__field">
+            <span>Cart discount</span>
+            <div className="crx-sales-options-modal__pair">
+              <select className="crx-select" value={discountType} onChange={(e) => onDiscountTypeChange(e.target.value)}>
+                <option value="none">None</option>
+                <option value="percent">%</option>
+                <option value="amount">$</option>
+              </select>
+              <input
+                className="crx-input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={discountValue}
+                disabled={discountType === "none"}
+                onChange={(e) => onDiscountValueChange(e.target.value)}
+              />
+            </div>
+          </label>
+          <label className="crx-sales-options-modal__field">
+            <span>Coupon</span>
+            <div className="crx-sales-options-modal__pair">
+              <input
+                className="crx-input"
+                placeholder="e.g. SAVE10"
+                value={couponCode}
+                onChange={(e) => onCouponCodeChange(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && onApplyCoupon?.()}
+              />
+              <button type="button" className="btn-secondary" onClick={onApplyCoupon}>
+                Apply
+              </button>
+            </div>
+            {couponHint ? <span className="crx-sales-totals__hint">{couponHint}</span> : null}
+          </label>
+          <label className="crx-sales-options-modal__field">
+            <span>Loyalty points</span>
+            <input
+              className="crx-input"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="Points to redeem"
+              value={loyaltyPoints}
+              onChange={(e) => onLoyaltyPointsChange(e.target.value)}
+            />
+          </label>
+          <label className="crx-sales-totals__exempt" style={{ marginTop: 0 }}>
+            <input type="checkbox" checked={taxExempt} onChange={(e) => onTaxExemptChange(e.target.checked)} />
+            Tax exempt
+          </label>
+          {collectSaleNotes ? (
+            <label className="crx-sales-options-modal__field">
+              <span>Sale note</span>
+              <textarea
+                className="crx-input"
+                rows={3}
+                placeholder="Note for this sale"
+                value={saleNote}
+                onChange={(e) => onSaleNoteChange(e.target.value)}
+                style={{ resize: "vertical" }}
+              />
+            </label>
+          ) : null}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+          <button type="button" className="btn-primary" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -198,6 +308,7 @@ export default function PosSalesRegisterPanel({
   quickServiceItems,
   onAddServiceItem,
 }) {
+  const [showSaleOptions, setShowSaleOptions] = useState(false);
   const departments = useMemo(() => listPosDepartments(), []);
   const hotProducts = useMemo(() => (favoritesItems || []).slice(0, 8), [favoritesItems]);
   const departmentItems = useMemo(
@@ -206,9 +317,16 @@ export default function PosSalesRegisterPanel({
   );
 
   const couponHint = POS_CHECKOUT_COUPONS[couponCode.trim().toUpperCase()]?.label;
+  const hasSaleOptions =
+    discountType !== "none" ||
+    Number(discountValue) > 0 ||
+    Boolean(couponCode.trim()) ||
+    Number(loyaltyPoints) > 0 ||
+    taxExempt ||
+    Boolean(saleNote?.trim());
 
   return (
-    <div className="crx-sales-register">
+    <div className="crx-sales-register crx-sales-register--fit">
       <div className="crx-sales-register__left">
         <div className="crx-card crx-sales-scan">
           <div className="crx-sales-scan__row">
@@ -274,7 +392,7 @@ export default function PosSalesRegisterPanel({
           ) : null}
         </div>
 
-        <div className="crx-card crx-sales-cart">
+        <div className="crx-card crx-sales-cart crx-sales-cart--fill">
           <div className="crx-card-header">
             <span className="crx-card-title">Sale lines</span>
             <div style={{ display: "flex", gap: 8 }}>
@@ -292,153 +410,101 @@ export default function PosSalesRegisterPanel({
               </button>
             </div>
           </div>
-          <div className="crx-sales-cart__table">
-            <div className="crx-sales-cart__head">
-              {["Item", "Qty", "Price", "Disc.", "Total", ""].map((h) => (
-                <div key={h}>{h}</div>
-              ))}
-            </div>
-            {cart.length > 0 ? (
-              cart.map((item) => (
-                <div key={item.sku} className="crx-sales-cart__row">
-                  <div>
-                    <div className="crx-sales-cart__name">{item.name}</div>
-                    <div className="crx-sales-cart__sku">{item.category}</div>
-                  </div>
-                  <div className="crx-sales-cart__qty">
-                    <button
-                      type="button"
-                      className="btn-secondary crx-qty-btn"
-                      onClick={() => onUpdateQty(item.sku, item.qty - 1)}
-                      aria-label="Decrease quantity"
-                    >
-                      -
-                    </button>
+          <div className="crx-sales-cart__scroll">
+            <div className="crx-sales-cart__table">
+              <div className="crx-sales-cart__head">
+                {["Item", "Qty", "Price", "Disc.", "Total", ""].map((h) => (
+                  <div key={h}>{h}</div>
+                ))}
+              </div>
+              {cart.length > 0 ? (
+                cart.map((item) => (
+                  <div key={item.sku} className="crx-sales-cart__row">
+                    <div>
+                      <div className="crx-sales-cart__name">{item.name}</div>
+                      <div className="crx-sales-cart__sku">{item.category}</div>
+                    </div>
+                    <div className="crx-sales-cart__qty">
+                      <button
+                        type="button"
+                        className="btn-secondary crx-qty-btn"
+                        onClick={() => onUpdateQty(item.sku, item.qty - 1)}
+                        aria-label="Decrease quantity"
+                      >
+                        -
+                      </button>
+                      <input
+                        className="crx-input"
+                        type="number"
+                        min="0"
+                        value={item.qty}
+                        onChange={(e) => onUpdateQty(item.sku, e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary crx-qty-btn"
+                        onClick={() => onUpdateQty(item.sku, item.qty + 1)}
+                        aria-label="Increase quantity"
+                      >
+                        +
+                      </button>
+                    </div>
+                    {managerOverrideActive ? (
+                      <input
+                        className="crx-input crx-sales-cart__price-input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.price}
+                        onChange={(e) => onUpdatePrice(item.sku, e.target.value)}
+                        title="Price override (manager)"
+                      />
+                    ) : (
+                      <div className="crx-sales-cart__money">${Number(item.price).toFixed(2)}</div>
+                    )}
                     <input
-                      className="crx-input"
-                      type="number"
-                      min="0"
-                      value={item.qty}
-                      onChange={(e) => onUpdateQty(item.sku, e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="btn-secondary crx-qty-btn"
-                      onClick={() => onUpdateQty(item.sku, item.qty + 1)}
-                      aria-label="Increase quantity"
-                    >
-                      +
-                    </button>
-                  </div>
-                  {managerOverrideActive ? (
-                    <input
-                      className="crx-input crx-sales-cart__price-input"
+                      className="crx-input crx-sales-cart__disc-input"
                       type="number"
                       min="0"
                       step="0.01"
-                      value={item.price}
-                      onChange={(e) => onUpdatePrice(item.sku, e.target.value)}
-                      title="Price override (manager)"
+                      value={item.lineDiscount || 0}
+                      onChange={(e) => onUpdateLineDiscount(item.sku, e.target.value)}
+                      title="Line discount"
                     />
-                  ) : (
-                    <div className="crx-sales-cart__money">${Number(item.price).toFixed(2)}</div>
-                  )}
-                  <input
-                    className="crx-input crx-sales-cart__disc-input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.lineDiscount || 0}
-                    onChange={(e) => onUpdateLineDiscount(item.sku, e.target.value)}
-                    title="Line discount"
-                  />
-                  <div className="crx-sales-cart__money crx-sales-cart__money--strong">
-                    $
-                    {(
-                      Math.max(0, item.price * item.qty - (Number(item.lineDiscount) || 0))
-                    ).toFixed(2)}
+                    <div className="crx-sales-cart__money crx-sales-cart__money--strong">
+                      $
+                      {(
+                        Math.max(0, item.price * item.qty - (Number(item.lineDiscount) || 0))
+                      ).toFixed(2)}
+                    </div>
+                    <button
+                      type="button"
+                      className="crx-icon-btn"
+                      onClick={() => onRemoveLine(item.sku)}
+                      aria-label="Remove line"
+                    >
+                      ×
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="crx-icon-btn"
-                    onClick={() => onRemoveLine(item.sku)}
-                    aria-label="Remove line"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))
-            ) : (
-              <div className="crx-sales-cart__empty">Scan a product or use hot keys on the right</div>
-            )}
+                ))
+              ) : (
+                <div className="crx-sales-cart__empty">Scan a product or use hot keys on the right</div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="crx-card crx-sales-totals">
-          <div className="crx-sales-totals__grid">
-            <label className="crx-sales-totals__field">
-              <span>Cart discount</span>
-              <div className="crx-sales-totals__pair">
-                <select className="crx-select" value={discountType} onChange={(e) => onDiscountTypeChange(e.target.value)}>
-                  <option value="none">None</option>
-                  <option value="percent">%</option>
-                  <option value="amount">$</option>
-                </select>
-                <input
-                  className="crx-input"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={discountValue}
-                  disabled={discountType === "none"}
-                  onChange={(e) => onDiscountValueChange(e.target.value)}
-                />
-              </div>
-            </label>
-            <label className="crx-sales-totals__field">
-              <span>Coupon</span>
-              <div className="crx-sales-totals__pair">
-                <input
-                  className="crx-input"
-                  placeholder="e.g. SAVE10"
-                  value={couponCode}
-                  onChange={(e) => onCouponCodeChange(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && onApplyCoupon?.()}
-                />
-                <button type="button" className="btn-secondary" onClick={onApplyCoupon}>
-                  Apply
-                </button>
-              </div>
-              {couponHint ? <span className="crx-sales-totals__hint">{couponHint}</span> : null}
-            </label>
-            <label className="crx-sales-totals__field">
-              <span>Loyalty points</span>
-              <input
-                className="crx-input"
-                type="number"
-                min="0"
-                step="1"
-                placeholder="Points to redeem"
-                value={loyaltyPoints}
-                onChange={(e) => onLoyaltyPointsChange(e.target.value)}
-              />
-            </label>
+        <div className="crx-card crx-sales-totals crx-sales-totals--compact">
+          <div className="crx-card-header">
+            <span className="crx-card-title">Totals</span>
+            <div className="crx-sales-totals__actions">
+              {hasSaleOptions ? <span className="crx-sales-totals__badge">Options applied</span> : null}
+              <button type="button" className="btn-secondary" onClick={() => setShowSaleOptions(true)}>
+                Options
+              </button>
+            </div>
           </div>
-          <label className="crx-sales-totals__exempt">
-            <input type="checkbox" checked={taxExempt} onChange={(e) => onTaxExemptChange(e.target.checked)} />
-            Tax exempt
-          </label>
-          {collectSaleNotes ? (
-            <textarea
-              className="crx-input"
-              rows={2}
-              placeholder="Sale note"
-              value={saleNote}
-              onChange={(e) => onSaleNoteChange(e.target.value)}
-              style={{ marginTop: 10, resize: "vertical" }}
-            />
-          ) : null}
-          <div className="crx-sales-totals__breakdown">
+          <div className="crx-sales-totals__breakdown" style={{ padding: "0 18px 14px" }}>
             {selectedPickup ? (
               <div className="crx-sales-totals__line">
                 <span>Rx copay</span>
@@ -600,67 +666,90 @@ export default function PosSalesRegisterPanel({
           </div>
         </div>
 
-        <div className="crx-card crx-sales-hot">
-          <div className="crx-card-header">
-            <span className="crx-card-title">Hot products</span>
+        <div className="crx-sales-register__right-scroll">
+          <div className="crx-card crx-sales-hot">
+            <div className="crx-card-header">
+              <span className="crx-card-title">Hot products</span>
+            </div>
+            <div className="crx-sales-hot__grid">
+              {hotProducts.map((item) => (
+                <TouchTile
+                  key={item.id}
+                  emoji={item.emoji}
+                  label={item.name}
+                  sublabel={`$${Number(item.price).toFixed(2)}`}
+                  onClick={() => onAddFavorite(item)}
+                />
+              ))}
+            </div>
           </div>
-          <div className="crx-sales-hot__grid">
-            {hotProducts.map((item) => (
-              <TouchTile
-                key={item.id}
-                emoji={item.emoji}
-                label={item.name}
-                sublabel={`$${Number(item.price).toFixed(2)}`}
-                onClick={() => onAddFavorite(item)}
-              />
-            ))}
-          </div>
-        </div>
 
-        <div className="crx-card crx-sales-dept">
-          <div className="crx-card-header">
-            <span className="crx-card-title">Departments</span>
-          </div>
-          <div className="crx-sales-dept__shortcuts">
-            {departments.map((dept) => (
-              <button
-                key={dept}
-                type="button"
-                className={`crx-sales-dept__btn${activeDepartment === dept ? " active" : ""}`}
-                onClick={() => onFilterDepartment(activeDepartment === dept ? null : dept)}
-              >
-                {dept}
-              </button>
-            ))}
-          </div>
-          {activeDepartment ? (
-            <div className="crx-sales-dept__items">
-              {departmentItems.map((item) => (
-                <TouchTile
-                  key={item.sku}
-                  label={item.name}
-                  sublabel={`$${item.price.toFixed(2)}`}
-                  onClick={() => onAddCatalogItem(item)}
-                />
-              ))}
-              {!departmentItems.length ? (
-                <div style={{ fontSize: 12, color: "#9ca3af", padding: 8 }}>No items in this department.</div>
-              ) : null}
+          <div className="crx-card crx-sales-dept">
+            <div className="crx-card-header">
+              <span className="crx-card-title">Departments</span>
             </div>
-          ) : (
-            <div className="crx-sales-dept__browse">
-              {POS_FRONT_STORE_ITEMS.slice(0, 4).map((item) => (
-                <TouchTile
-                  key={item.sku}
-                  label={item.name}
-                  sublabel={item.category}
-                  onClick={() => onAddCatalogItem(item)}
-                />
+            <div className="crx-sales-dept__shortcuts">
+              {departments.map((dept) => (
+                <button
+                  key={dept}
+                  type="button"
+                  className={`crx-sales-dept__btn${activeDepartment === dept ? " active" : ""}`}
+                  onClick={() => onFilterDepartment(activeDepartment === dept ? null : dept)}
+                >
+                  {dept}
+                </button>
               ))}
             </div>
-          )}
+            {activeDepartment ? (
+              <div className="crx-sales-dept__items">
+                {departmentItems.map((item) => (
+                  <TouchTile
+                    key={item.sku}
+                    label={item.name}
+                    sublabel={`$${item.price.toFixed(2)}`}
+                    onClick={() => onAddCatalogItem(item)}
+                  />
+                ))}
+                {!departmentItems.length ? (
+                  <div style={{ fontSize: 12, color: "#9ca3af", padding: 8 }}>No items in this department.</div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="crx-sales-dept__browse">
+                {POS_FRONT_STORE_ITEMS.slice(0, 4).map((item) => (
+                  <TouchTile
+                    key={item.sku}
+                    label={item.name}
+                    sublabel={item.category}
+                    onClick={() => onAddCatalogItem(item)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {showSaleOptions ? (
+        <SaleOptionsModal
+          discountType={discountType}
+          discountValue={discountValue}
+          onDiscountTypeChange={onDiscountTypeChange}
+          onDiscountValueChange={onDiscountValueChange}
+          couponCode={couponCode}
+          onCouponCodeChange={onCouponCodeChange}
+          onApplyCoupon={onApplyCoupon}
+          couponHint={couponHint}
+          loyaltyPoints={loyaltyPoints}
+          onLoyaltyPointsChange={onLoyaltyPointsChange}
+          taxExempt={taxExempt}
+          onTaxExemptChange={onTaxExemptChange}
+          saleNote={saleNote}
+          onSaleNoteChange={onSaleNoteChange}
+          collectSaleNotes={collectSaleNotes}
+          onClose={() => setShowSaleOptions(false)}
+        />
+      ) : null}
 
       {showSignatureModal ? (
         <SignaturePad onAccept={onSignatureAccept} onCancel={onSignatureCancel} />
