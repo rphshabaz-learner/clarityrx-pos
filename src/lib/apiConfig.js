@@ -46,6 +46,15 @@ export function resolvePackagingSocketUrl(packagingApiBaseUrl = resolvePackaging
   return normalizeApiBaseUrl(packagingApiBaseUrl.replace(/\/api$/, ""));
 }
 
+function looksLikeVercelDeploymentProtection(response) {
+  const status = Number(response?.status);
+  if (status !== 401 && status !== 403) {
+    return false;
+  }
+  const contentType = String(response?.headers?.get?.("content-type") || "");
+  return contentType.includes("text/html");
+}
+
 export function buildBackendConnectionMessage(apiBaseUrl) {
   const target = apiBaseUrl || "the configured API";
   const productionLocalhost =
@@ -58,6 +67,10 @@ export function buildBackendConnectionMessage(apiBaseUrl) {
     return `Cannot reach the ClarityRx backend at ${target}. This deployed page is configured to use localhost, which points to the viewer's device. Set REACT_APP_API_BASE_URL to the deployed backend API URL.`;
   }
 
+  if (/vercel\.app/i.test(target)) {
+    return `Cannot reach the ClarityRx backend at ${target}. If that host is the main ClarityRx Vercel deployment, open Vercel → ClarityRx project → Settings → Deployment Protection and allow public access to Production (or use the stable production URL without protection). For local work, run the API in ../Clarityrx/clarityrx/server and set REACT_APP_API_BASE_URL=http://localhost:4000/api.`;
+  }
+
   return `Cannot reach the ClarityRx backend at ${target}. Start the backend server or set REACT_APP_API_BASE_URL to the deployed backend API URL.`;
 }
 
@@ -68,12 +81,17 @@ function responseLooksLikeStaticFrontend(response) {
 
 export function buildBackendHttpErrorMessage(apiBaseUrl, response) {
   const status = Number(response?.status);
+  const target = apiBaseUrl || "the configured API";
+
+  if (looksLikeVercelDeploymentProtection(response)) {
+    return `The ClarityRx backend at ${target} returned HTTP ${status} (Vercel Deployment Protection). Disable protection on the main ClarityRx Production deployment, or point REACT_APP_API_BASE_URL at a publicly reachable API host.`;
+  }
+
   const staticFrontend = responseLooksLikeStaticFrontend(response);
   if (!staticFrontend && status !== 404 && status !== 405) {
     return "";
   }
 
-  const target = apiBaseUrl || "the configured API";
   return `The ClarityRx backend at ${target} returned HTTP ${status || "a non-API response"}. Verify REACT_APP_API_BASE_URL points to the deployed Express API, not the static frontend URL.`;
 }
 
