@@ -10,6 +10,12 @@ import {
   Fingerprint,
 } from "lucide-react";
 import { useAuth } from "../AuthContext";
+import {
+  clearRuntimeBackendConfig,
+  getRuntimeApiBaseUrlOverride,
+  getRuntimePackagingSocketUrlOverride,
+  saveRuntimeBackendConfig,
+} from "../lib/apiConfig";
 import { getPasskeyCapability } from "../lib/webauthnClient";
 import MfaEnrollmentPanel from "../components/security/MfaEnrollmentPanel";
 
@@ -25,6 +31,108 @@ function ErrorBanner({ message }) {
   );
 }
 
+function BackendConfigPanel({ apiBaseUrl, error }) {
+  const [open, setOpen] = useState(() => Boolean(error && /Cannot reach|Deployment Protection|HTTP 40/i.test(error)));
+  const [apiInput, setApiInput] = useState(() => getRuntimeApiBaseUrlOverride() || apiBaseUrl || "");
+  const [socketInput, setSocketInput] = useState(() => getRuntimePackagingSocketUrlOverride());
+  const hasRuntimeOverride = Boolean(getRuntimeApiBaseUrlOverride() || getRuntimePackagingSocketUrlOverride());
+
+  const saveAndReload = () => {
+    saveRuntimeBackendConfig({
+      apiBaseUrl: apiInput.trim(),
+      packagingSocketUrl: socketInput.trim(),
+    });
+    window.location.reload();
+  };
+
+  const clearAndReload = () => {
+    clearRuntimeBackendConfig();
+    window.location.reload();
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="text-xs font-semibold text-cyan-700 hover:text-cyan-800"
+        onClick={() => setOpen(true)}
+      >
+        Backend connection
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-bold text-slate-800">Backend connection</div>
+          <div className="text-xs text-slate-500 mt-1">Current API: {apiBaseUrl}</div>
+        </div>
+        <button
+          type="button"
+          className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+          onClick={() => setOpen(false)}
+        >
+          Hide
+        </button>
+      </div>
+
+      <label className="block text-xs font-semibold text-slate-600">
+        API base URL
+        <input
+          className="mt-1 w-full h-10 px-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          value={apiInput}
+          onChange={(e) => setApiInput(e.target.value)}
+          placeholder="http://localhost:4000/api"
+        />
+      </label>
+
+      <label className="block text-xs font-semibold text-slate-600">
+        Socket URL
+        <input
+          className="mt-1 w-full h-10 px-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          value={socketInput}
+          onChange={(e) => setSocketInput(e.target.value)}
+          placeholder="http://localhost:4000"
+        />
+      </label>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="h-9 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold"
+          onClick={saveAndReload}
+        >
+          Save and reload
+        </button>
+        <button
+          type="button"
+          className="h-9 px-3 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100"
+          onClick={() => {
+            setApiInput("http://localhost:4000/api");
+            setSocketInput("http://localhost:4000");
+          }}
+        >
+          Use local
+        </button>
+        {hasRuntimeOverride ? (
+          <button
+            type="button"
+            className="h-9 px-3 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100"
+            onClick={clearAndReload}
+          >
+            Clear override
+          </button>
+        ) : null}
+      </div>
+      <p className="text-xs leading-relaxed text-slate-500">
+        For Vercel, use the main ClarityRx backend URL ending in /api. Protected preview URLs will not accept POS login requests.
+      </p>
+    </div>
+  );
+}
+
 export default function AuthScreen() {
   const {
     login,
@@ -35,6 +143,7 @@ export default function AuthScreen() {
     beginMfaEnrollment,
     verifyMfaEnrollment,
     securityConfig,
+    apiBaseUrl,
     error,
     setError,
   } = useAuth();
@@ -258,6 +367,7 @@ export default function AuthScreen() {
                 </div>
 
                 <ErrorBanner message={error} />
+                <BackendConfigPanel apiBaseUrl={apiBaseUrl} error={error} />
 
                 <button
                   type="submit"
