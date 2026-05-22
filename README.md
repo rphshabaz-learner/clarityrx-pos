@@ -2,6 +2,8 @@
 
 Standalone cashier till for ClarityRx pharmacies. Connects to the [ClarityRx](https://github.com/rphshabaz-learner/Clarityrx) pharmacy API for authentication and Kroll pickup sales.
 
+**Repository:** https://github.com/rphshabaz-learner/clarityrx-pos
+
 ## Prerequisites
 
 - Node.js 20.x
