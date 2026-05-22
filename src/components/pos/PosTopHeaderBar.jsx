@@ -81,12 +81,11 @@ export default function PosTopHeaderBar({ onNotify }) {
     dismissHeaderAlert,
     invokeTillAction,
   } = usePosTill();
-  const { health, kroll, syncStatus, pickups, pickupTotal, pickupSyncOn, reloadPickups } = usePosHeaderStatus();
+  const { health, kroll, syncStatus } = usePosHeaderStatus();
   const { logActivity } = usePosWorkspaceData();
 
   const [now, setNow] = useState(() => new Date());
   const [customerQuery, setCustomerQuery] = useState("");
-  const [showPickups, setShowPickups] = useState(false);
   const [showPriceCheck, setShowPriceCheck] = useState(false);
   const [priceCheckQuery, setPriceCheckQuery] = useState("");
   const [showManagerModal, setShowManagerModal] = useState(false);
@@ -272,46 +271,6 @@ export default function PosTopHeaderBar({ onNotify }) {
             <button type="button" className="btn-tone-rx crx-pos-header__lookup-btn" onClick={handleCustomerLookup}>
               Look up
             </button>
-          </div>
-
-          <div className="crx-pos-header__pickups">
-            <button
-              type="button"
-              className={`crx-pos-header__pickup-btn${pickupTotal > 0 ? " has-items" : ""}`}
-              onClick={() => {
-                setShowPickups((open) => !open);
-                if (pickupSyncOn) void reloadPickups();
-              }}
-              aria-expanded={showPickups}
-            >
-              Rx pickup
-              <span className="crx-pos-header__pickup-count">{pickupTotal}</span>
-            </button>
-            {showPickups ? (
-              <div className="crx-pos-header__pickup-panel" role="dialog" aria-label="Rx pickup queue">
-                <div className="crx-pos-header__pickup-panel-title">
-                  {pickupSyncOn ? "Ready for pickup" : "Pickup sync off"}
-                </div>
-                {pickups.length === 0 ? (
-                  <div className="crx-pos-header__pickup-empty">No pickups in queue.</div>
-                ) : (
-                  pickups.slice(0, 8).map((pickup) => (
-                    <button
-                      key={pickup.id || pickup.barcode}
-                      type="button"
-                      className="crx-pos-header__pickup-row"
-                      onClick={() => {
-                        invokeTillAction("attachPickup", pickup);
-                        setShowPickups(false);
-                      }}
-                    >
-                      <span>{pickup.patientName || pickup.barcode || pickup.id}</span>
-                      <span>${Number(pickup.totalCopay || 0).toFixed(2)}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
           </div>
 
           {headerAlerts.length > 0 ? (

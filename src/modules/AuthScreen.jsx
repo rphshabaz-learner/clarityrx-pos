@@ -464,8 +464,8 @@ export default function AuthScreen() {
             )}
 
             {showPasskeySection ? (
-              <div className="mt-6 space-y-3">
-                <div className="flex items-center text-center text-xs font-extrabold uppercase tracking-normal text-slate-400">
+              <div className="auth-passkey-section mt-6 space-y-3">
+                <div className="auth-login-divider flex items-center text-center text-xs font-extrabold uppercase tracking-normal text-slate-400">
                   <div className="flex-1 border-b border-slate-200" />
                   <span className="px-3">Or continue with</span>
                   <div className="flex-1 border-b border-slate-200" />

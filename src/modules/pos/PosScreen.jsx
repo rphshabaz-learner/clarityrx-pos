@@ -32,7 +32,6 @@ import {
   savePosFavoritesConfig,
   serviceItemToCartLine,
 } from "../../lib/posFavorites";
-import { canConfigurePosPrivacy } from "../../lib/privacy/dataMinimization";
 import { loadPosPrivacyConfig, savePosPrivacyConfig } from "../../lib/privacy/posPrivacyConfig";
 import { useSecurelinkPayment } from "../../hooks/useSecurelinkPayment";
 import { usePosAccessibility } from "../../context/PosAccessibilityContext";
@@ -158,7 +157,6 @@ export default function PosScreen() {
   const { logActivity, runAutosave } = usePosWorkspaceData();
   const {
     selectedTillNumber,
-    shift,
     registerTillActions,
     setLastCompletedSale,
     refreshSuspendedSale,
@@ -437,7 +435,7 @@ export default function PosScreen() {
     applyRegisterState(loadTillRegisterState(selectedTillNumber));
     setFavoritesConfig(loadPosFavoritesConfig(selectedTillNumber));
     prevTillRef.current = selectedTillNumber;
-  }, [applyRegisterState, selectedTillNumber]);
+  }, [applyRegisterState, buildRegisterState, selectedTillNumber]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

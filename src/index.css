@@ -10,11 +10,16 @@
 .auth-login-header {
   align-items: flex-start;
   padding: 20px;
+  width: min(1180px, calc(100% - 40px));
+  margin-inline: auto;
 }
 
 .auth-login-main {
   margin-inline: auto;
   width: min(1180px, calc(100% - 40px));
+  min-height: calc(100dvh - 112px);
+  align-content: center;
+  padding-bottom: 48px;
 }
 
 .auth-login-card {
@@ -32,8 +37,22 @@
   min-height: 56px;
 }
 
+.auth-passkey-section {
+  margin-top: 22px !important;
+}
+
+.auth-login-divider {
+  margin-block: 18px 14px;
+  line-height: 1;
+}
+
+.auth-login-divider span {
+  background: rgba(255, 255, 255, 0.95);
+}
+
 .auth-login-header > button {
   padding: 8px 12px !important;
+  min-height: 36px;
 }
 
 .auth-panel-title {
@@ -43,6 +62,11 @@
 
 .auth-login-status {
   justify-content: flex-start;
+  padding-top: 2px;
+}
+
+.auth-login-status span {
+  white-space: nowrap;
 }
 
 @media (min-width: 640px) {
@@ -71,14 +95,14 @@
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    padding-inline: 3.5rem;
+    padding: 24px 0;
   }
 
   .auth-login-main {
     grid-template-columns: minmax(320px, 456px);
     justify-content: center;
-    padding-top: 2rem;
-    padding-bottom: 4rem;
+    padding-top: 0;
+    padding-bottom: 56px;
   }
 
   .auth-login-card {
