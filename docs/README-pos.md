@@ -48,6 +48,13 @@ Loads `http://localhost:3001` in the Electron shell.
 
 Use a touch-capable monitor or AIO PC. The POS layout uses finger-sized controls (44px+ targets), `touch-action: manipulation` to reduce tap delay, and active-state styling so buttons work without a mouse. Barcode scanners still work as keyboard input into scan/search fields.
 
+## Receipt printing
+
+Receipt design references live in `docs/receipts/`.
+
+- `clarityrx-pos-receipt-80mm.txt` is a 42-character thermal receipt layout for 80mm POS printers.
+- `clarityrx-pos-receipt-preview.html` is a ClarityRx POS receipt preview modal with print queue, reprint, audit, barcode, and QR sections.
+
 ## Architecture
 
 - Entry: `src/apps/pos/PosApp.jsx`

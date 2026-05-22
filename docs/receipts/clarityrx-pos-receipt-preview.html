@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClarityRx POS Receipt Preview</title>
+  <style>
+    :root {
+      --paper: #fffdf7;
+      --ink: #111;
+      --muted: #555;
+      --desk: #eef1f4;
+      --accent: #21695c;
+      --accent-dark: #174d43;
+      --rule: #222;
+      --panel: #ffffff;
+      --line: #d9dee3;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--desk);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 28px;
+      align-items: start;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px;
+    }
+
+    .pos-shell {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 18px 40px rgba(20, 28, 35, .12);
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .pos-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 56px;
+      padding: 0 18px;
+      background: #17212b;
+      color: #fff;
+    }
+
+    .pos-title {
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .pos-meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 12px;
+      color: #d6dde3;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pos-toolbar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tool-cell {
+      background: #f8fafb;
+      padding: 12px 14px;
+    }
+
+    .tool-label {
+      color: #64717c;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .tool-value {
+      margin-top: 5px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .stage {
+      display: flex;
+      justify-content: center;
+      min-width: 0;
+      padding: 28px 18px;
+      background: #f3f6f7;
+    }
+
+    .receipt {
+      width: 80mm;
+      min-height: 240mm;
+      background: var(--paper);
+      border: 1px solid #ddd4c2;
+      box-shadow: 0 18px 40px rgba(20, 28, 35, .18);
+      padding: 5mm 4mm 7mm;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 10.8px;
+      line-height: 1.28;
+      letter-spacing: 0;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .brand {
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0;
+      margin-top: 2mm;
+    }
+
+    .subbrand {
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 2mm;
+    }
+
+    .address {
+      margin-top: 2mm;
+      color: var(--muted);
+    }
+
+    .rule {
+      border-top: 2px solid var(--rule);
+      margin: 3mm 0;
+    }
+
+    .thin-rule {
+      border-top: 1px dashed var(--rule);
+      margin: 2mm 0;
+    }
+
+    .status {
+      display: block;
+      border: 2px solid var(--ink);
+      padding: 1.5mm 2mm;
+      margin-bottom: 2.5mm;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .meta {
+      display: grid;
+      gap: 1.2mm;
+    }
+
+    .pair,
+    .amount-row,
+    .item-head,
+    .item-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 3mm;
+      align-items: baseline;
+    }
+
+    .pair strong,
+    .label {
+      font-weight: 900;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2mm;
+    }
+
+    .section-title {
+      font-weight: 900;
+      font-size: 12px;
+      margin-bottom: 1.5mm;
+    }
+
+    .item-head,
+    .item-row {
+      grid-template-columns: 1fr 9mm 18mm;
+    }
+
+    .qty,
+    .money {
+      text-align: right;
+    }
+
+    .desc {
+      margin-top: .5mm;
+      color: var(--muted);
+    }
+
+    .total {
+      font-size: 17px;
+      font-weight: 900;
+      border-top: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      padding: 1.5mm 0;
+      margin-top: 1mm;
+    }
+
+    .qr {
+      width: 28mm;
+      height: 28mm;
+      margin: 2mm auto 1mm;
+      image-rendering: pixelated;
+      background:
+        linear-gradient(90deg, #000 10%, transparent 10% 20%, #000 20% 30%, transparent 30% 40%, #000 40% 50%, transparent 50% 70%, #000 70% 80%, transparent 80%),
+        linear-gradient(#000 10%, transparent 10% 20%, #000 20% 30%, transparent 30% 50%, #000 50% 60%, transparent 60% 70%, #000 70% 80%, transparent 80%);
+      background-size: 7mm 7mm;
+      border: 3mm solid #000;
+      outline: 1.5mm solid #fff;
+    }
+
+    .barcode {
+      display: flex;
+      justify-content: center;
+      align-items: end;
+      gap: .55mm;
+      height: 18mm;
+      margin-top: 2mm;
+    }
+
+    .bar {
+      background: #000;
+      height: 100%;
+      width: .55mm;
+    }
+
+    .bar.wide {
+      width: 1.1mm;
+    }
+
+    .bar.short {
+      height: 78%;
+    }
+
+    .human-code {
+      text-align: center;
+      font-weight: 900;
+      margin-top: 1mm;
+      font-size: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      position: sticky;
+      top: 20px;
+    }
+
+    .panel h1 {
+      margin: 0 0 14px;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .panel dl {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 10px 12px;
+      margin: 0 0 18px;
+      font-size: 14px;
+    }
+
+    .panel dt {
+      color: #5f6b75;
+    }
+
+    .panel dd {
+      margin: 0;
+      font-weight: 700;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    button {
+      min-height: 42px;
+      border: 0;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .queue {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    .queue-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .queue-row span:first-child {
+      color: #64717c;
+    }
+
+    .queue-row strong {
+      color: var(--accent-dark);
+    }
+
+    body.compact {
+      background: #fff;
+    }
+
+    body.compact .app {
+      display: block;
+      max-width: none;
+      width: 80mm;
+      padding: 0;
+    }
+
+    body.compact .stage {
+      display: block;
+      padding: 0;
+    }
+
+    body.compact .receipt {
+      border: 0;
+      box-shadow: none;
+      background: #fff;
+    }
+
+    body.compact .pos-shell,
+    body.compact .pos-bar,
+    body.compact .pos-toolbar {
+      display: block;
+      border: 0;
+      box-shadow: none;
+      background: #fff;
+    }
+
+    body.compact .pos-bar,
+    body.compact .pos-toolbar {
+      display: none;
+    }
+
+    body.compact .panel {
+      display: none;
+    }
+
+    .secondary {
+      background: #17212b;
+    }
+
+    @media (max-width: 760px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .pos-toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .panel {
+        position: static;
+        order: -1;
+      }
+    }
+
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
+
+    @media print {
+      html,
+      body {
+        width: 80mm;
+        margin: 0;
+        padding: 0;
+        background: #fff;
+      }
+
+      .app {
+        display: block;
+        width: 80mm;
+        margin: 0;
+        padding: 0;
+      }
+
+      .stage {
+        display: block;
+        padding: 0;
+      }
+
+      .panel {
+        display: none;
+      }
+
+      .pos-shell,
+      .pos-bar,
+      .pos-toolbar {
+        display: block;
+        border: 0;
+        box-shadow: none;
+        background: #fff;
+      }
+
+      .pos-bar,
+      .pos-toolbar {
+        display: none;
+      }
+
+      .receipt {
+        width: 80mm;
+        min-height: 0;
+        border: 0;
+        box-shadow: none;
+        background: #fff;
+        padding: 4mm;
+        color: #000;
+      }
+
+      .address,
+      .desc {
+        color: #000;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="pos-shell" aria-label="ClarityRx POS receipt preview">
+      <header class="pos-bar">
+        <div class="pos-title">ClarityRx POS Receipt Preview</div>
+        <div class="pos-meta">
+          <span>Terminal POS-03</span>
+          <span>Queue Ready</span>
+          <span>Receipt FS-00099749</span>
+        </div>
+      </header>
+
+      <div class="pos-toolbar" aria-label="POS receipt actions">
+        <div class="tool-cell">
+          <div class="tool-label">Transaction</div>
+          <div class="tool-value">Front Store Sale</div>
+        </div>
+        <div class="tool-cell">
+          <div class="tool-label">Delivery</div>
+          <div class="tool-value">Thermal + Digital</div>
+        </div>
+        <div class="tool-cell">
+          <div class="tool-label">Print Width</div>
+          <div class="tool-value">80mm / 42 chars</div>
+        </div>
+        <div class="tool-cell">
+          <div class="tool-label">Audit Status</div>
+          <div class="tool-value">Reprint Logged</div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <article
+          class="receipt"
+          data-receipt-number="FS-00099749"
+          data-terminal-id="POS-03"
+          data-store-id="TRAIL-01"
+          data-transaction-type="SALE"
+          data-status="REPRINT"
+        >
+        <header class="center">
+          <div class="brand">CLARITYRX</div>
+          <div class="subbrand">PHARMACY &amp; FRONT STORE</div>
+          <div class="address">
+            1280 Cedar Ave<br>
+            Trail, BC V1R 4B7<br>
+            (250) 368-3364
+          </div>
+        </header>
+
+        <div class="rule"></div>
+
+        <span class="status">*** REPRINT ***</span>
+
+        <section class="meta">
+          <div class="pair"><strong>RECEIPT #</strong><span>FS-00099749</span></div>
+          <div class="two-col">
+            <div><span class="label">DATE</span><br>2026-05-21</div>
+            <div><span class="label">TIME</span><br>03:40 PM</div>
+          </div>
+          <div class="two-col">
+            <div><span class="label">STORE</span><br>TRAIL-01</div>
+            <div><span class="label">TERMINAL</span><br>POS-03</div>
+          </div>
+          <div class="two-col">
+            <div><span class="label">SHIFT</span><br>S-20260521-02</div>
+            <div><span class="label">CASHIER</span><br>PHARM T</div>
+          </div>
+          <div class="two-col">
+            <div><span class="label">TYPE</span><br>SALE</div>
+            <div><span class="label">CUSTOMER</span><br>996</div>
+          </div>
+          <div class="pair"><strong>AUTH HASH</strong><span>A92KD8X2</span></div>
+        </section>
+
+        <div class="rule"></div>
+
+        <section>
+          <div class="section-title">RX ITEMS</div>
+          <div class="item-head">
+            <strong>ITEM</strong><strong class="qty">QTY</strong><strong class="money">TOTAL</strong>
+          </div>
+          <div class="thin-rule"></div>
+          <div class="item-row">
+            <span>TX 2327980</span><span class="qty">1</span><span class="money">$0.00</span>
+          </div>
+          <div class="desc">Test / Internal Item</div>
+          <div class="desc">Verified by: RPH T</div>
+        </section>
+
+        <div class="thin-rule"></div>
+
+        <section>
+          <div class="section-title">FRONT STORE ITEMS</div>
+          <div>No front store items</div>
+        </section>
+
+        <div class="rule"></div>
+
+        <section>
+          <div class="amount-row"><span>SUBTOTAL</span><span>$0.00</span></div>
+          <div class="amount-row"><span>GST</span><span>$0.00</span></div>
+          <div class="amount-row"><span>PST</span><span>$0.00</span></div>
+          <div class="amount-row total"><span>TOTAL</span><span>$0.00</span></div>
+        </section>
+
+        <div class="rule"></div>
+
+        <section>
+          <div class="section-title">PAYMENT</div>
+          <div class="amount-row"><span>CASH</span><span>$0.00</span></div>
+          <div class="amount-row"><strong>CHANGE DUE</strong><strong>$0.00</strong></div>
+        </section>
+
+        <div class="rule"></div>
+
+        <section>
+          <div class="section-title">LOYALTY</div>
+          <div>AIR MILES #: ********1234</div>
+          <div>POINTS EARNED: 0</div>
+          <div>MEMBER SAVINGS: $0.00</div>
+        </section>
+
+        <div class="rule"></div>
+
+        <section>
+          <div class="section-title">RETURNS</div>
+          <div>Returns accepted within 15 days with original receipt. Clearance items final sale. Prescriptions follow pharmacy policy.</div>
+        </section>
+
+        <div class="rule"></div>
+
+        <footer class="center">
+          <div>Thank you for choosing</div>
+          <strong>ClarityRx</strong>
+          <br><br>
+          <div>www.clarityrx.ca</div>
+          <br>
+          <div>Scan for digital copy</div>
+          <div class="qr" aria-label="QR code placeholder"></div>
+        </footer>
+
+        <div class="rule"></div>
+
+        <section>
+          <div class="section-title center">BARCODE</div>
+          <div class="barcode" aria-label="Barcode placeholder">
+            <span class="bar wide"></span><span class="bar"></span><span class="bar short"></span>
+            <span class="bar wide"></span><span class="bar"></span><span class="bar"></span>
+            <span class="bar short"></span><span class="bar wide"></span><span class="bar"></span>
+            <span class="bar wide"></span><span class="bar short"></span><span class="bar"></span>
+            <span class="bar"></span><span class="bar wide"></span><span class="bar"></span>
+            <span class="bar short"></span><span class="bar wide"></span><span class="bar"></span>
+            <span class="bar"></span><span class="bar wide"></span><span class="bar short"></span>
+          </div>
+          <div class="human-code">00300099749</div>
+        </section>
+        </article>
+      </div>
+    </section>
+
+    <aside class="panel" aria-label="Receipt controls">
+      <h1>ClarityRx POS</h1>
+      <dl>
+        <dt>Screen</dt><dd>Receipt modal</dd>
+        <dt>Format</dt><dd>80mm thermal</dd>
+        <dt>Text width</dt><dd>42 characters</dd>
+        <dt>Mode</dt><dd>POS reprint</dd>
+        <dt>Status</dt><dd>Printer ready</dd>
+      </dl>
+      <div class="actions">
+        <button type="button" onclick="window.print()">Print Preview</button>
+        <button class="secondary" type="button" onclick="document.body.classList.toggle('compact')">Thermal View</button>
+      </div>
+      <div class="queue" aria-label="Print queue status">
+        <div class="queue-row"><span>Printer</span><strong>Epson TM-T88</strong></div>
+        <div class="queue-row"><span>Queue</span><strong>Ready</strong></div>
+        <div class="queue-row"><span>Copies</span><strong>1</strong></div>
+        <div class="queue-row"><span>Digital Copy</span><strong>QR enabled</strong></div>
+        <div class="queue-row"><span>Audit Log</span><strong>Required</strong></div>
+      </div>
+    </aside>
+  </main>
+</body>
+</html>

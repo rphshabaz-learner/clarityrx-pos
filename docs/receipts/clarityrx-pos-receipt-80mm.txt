@@ -1,0 +1,58 @@
+             CLARITYRX
+       PHARMACY & FRONT STORE
+          1280 Cedar Ave
+          Trail, BC V1R 4B7
+           (250) 368-3364
+==========================================
+*** REPRINT ***
+RECEIPT #: FS-00099749
+DATE:      2026-05-21    TIME: 03:40 PM
+STORE:     TRAIL-01      TERMINAL: POS-03
+SHIFT:     S-20260521-02 CASHIER: PHARM T
+TYPE:      SALE          CUSTOMER ID: 996
+AUTH HASH: A92KD8X2
+==========================================
+RX ITEMS
+------------------------------------------
+ITEM                         QTY     TOTAL
+------------------------------------------
+TX 2327980                     1     $0.00
+Test / Internal Item
+Verified by: RPH T
+------------------------------------------
+FRONT STORE ITEMS
+------------------------------------------
+No front store items
+==========================================
+SUBTOTAL                             $0.00
+GST                                  $0.00
+PST                                  $0.00
+------------------------------------------
+TOTAL                                $0.00
+==========================================
+PAYMENT
+CASH                                 $0.00
+CHANGE DUE                           $0.00
+==========================================
+LOYALTY
+AIR MILES #: ********1234
+POINTS EARNED: 0
+MEMBER SAVINGS: $0.00
+==========================================
+RETURNS
+Returns accepted within 15 days with
+original receipt. Clearance items final
+sale. Rx items follow pharmacy policy.
+==========================================
+        Thank you for choosing
+             ClarityRx
+
+          www.clarityrx.ca
+
+       Scan for digital copy
+             [ QR CODE ]
+==========================================
+BARCODE
+00300099749
+|| ||| |||||| || ||||| ||| || |||
+==========================================
