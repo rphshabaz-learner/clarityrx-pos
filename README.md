@@ -35,6 +35,21 @@ npm run build
 
 Static output in `build/`.
 
+## Deploy (Vercel)
+
+This repo ships a **static CRA bundle only**. The Express API lives in the main [ClarityRx](https://github.com/rphshabaz-learner/Clarityrx) repo (`api/index.js` on Vercel).
+
+In the **clarityrx-pos** Vercel project, set build-time env vars (then redeploy):
+
+| Variable | Example | Notes |
+|----------|---------|--------|
+| `REACT_APP_API_BASE_URL` | `https://<clarityrx-app>.vercel.app/api` | Main pharmacy deployment with Express — **not** `https://clarityrx-pos.vercel.app/api` |
+| `REACT_APP_PACKAGING_SOCKET_URL` | `https://<clarityrx-app>.vercel.app` | Socket.IO host (no `/api` suffix) |
+
+If `REACT_APP_API_BASE_URL` is missing, the till incorrectly calls its own origin (`/api` on the static host). Vercel returns the SPA for GET and **HTTP 405** for POST.
+
+Production builds fail fast when `REACT_APP_API_BASE_URL` is unset (`scripts/check-production-env.js`).
+
 ## Related repos
 
 - **ClarityRx** — main pharmacy workspace; sidebar POS opens this app

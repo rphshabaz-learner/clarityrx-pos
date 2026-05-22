@@ -12,13 +12,22 @@ export function normalizeApiBaseUrl(value) {
   return trimTrailingSlash(value);
 }
 
+function allowsSameOriginApiFallback() {
+  return process.env.REACT_APP_SAME_ORIGIN_API === "1" || process.env.NEXT_PUBLIC_SAME_ORIGIN_API === "1";
+}
+
 export function resolveApiBaseUrl() {
   const configured = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.REACT_APP_API_BASE_URL;
   if (configured) {
     return normalizeApiBaseUrl(configured);
   }
 
-  if (typeof window !== "undefined" && window.location && !isLocalHostname(window.location.hostname)) {
+  if (
+    allowsSameOriginApiFallback() &&
+    typeof window !== "undefined" &&
+    window.location &&
+    !isLocalHostname(window.location.hostname)
+  ) {
     return normalizeApiBaseUrl(`${window.location.origin}/api`);
   }
 
@@ -52,14 +61,20 @@ export function buildBackendConnectionMessage(apiBaseUrl) {
   return `Cannot reach the ClarityRx backend at ${target}. Start the backend server or set REACT_APP_API_BASE_URL to the deployed backend API URL.`;
 }
 
+function responseLooksLikeStaticFrontend(response) {
+  const contentType = String(response?.headers?.get?.("content-type") || "");
+  return contentType.includes("text/html");
+}
+
 export function buildBackendHttpErrorMessage(apiBaseUrl, response) {
   const status = Number(response?.status);
-  if (status !== 404 && status !== 405) {
+  const staticFrontend = responseLooksLikeStaticFrontend(response);
+  if (!staticFrontend && status !== 404 && status !== 405) {
     return "";
   }
 
   const target = apiBaseUrl || "the configured API";
-  return `The ClarityRx backend at ${target} returned HTTP ${status}. Verify REACT_APP_API_BASE_URL points to the deployed Express API, not the static frontend URL.`;
+  return `The ClarityRx backend at ${target} returned HTTP ${status || "a non-API response"}. Verify REACT_APP_API_BASE_URL points to the deployed Express API, not the static frontend URL.`;
 }
 
 export function createBackendConnectionError(apiBaseUrl, cause) {
