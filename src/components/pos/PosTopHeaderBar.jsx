@@ -113,6 +113,7 @@ export default function PosTopHeaderBar({ onNotify }) {
   }, [priceCheckQuery]);
 
   const krollTone = kroll.connected === true ? "ok" : kroll.connected === false ? "error" : "neutral";
+  const showSyncStatus = syncStatus.label !== "Offline mode";
 
   const notify = (message, type = "info") => {
     if (onNotify) {
@@ -234,15 +235,18 @@ export default function PosTopHeaderBar({ onNotify }) {
           </div>
 
           <div className="crx-pos-header__status">
-            <StatusPill
-              tone={syncStatus.tone === "ok" ? "ok" : syncStatus.tone === "warn" ? "warn" : "neutral"}
-              label={syncStatus.label}
-              detail={syncStatus.detail}
-            />
+            {showSyncStatus ? (
+              <StatusPill
+                tone={syncStatus.tone === "ok" ? "ok" : syncStatus.tone === "warn" ? "warn" : "neutral"}
+                label={syncStatus.label}
+                detail={syncStatus.detail}
+              />
+            ) : null}
             <StatusPill
               tone={health.ok === false ? "error" : health.ok ? "ok" : "neutral"}
               label={health.ok === false ? "API offline" : "Transmit"}
               detail={health.ok === false ? "Check connection" : "Online"}
+              title={health.message || undefined}
             />
             <StatusPill tone={kroll.connected === true ? "rx" : krollTone} label={kroll.label} detail={kroll.detail} />
             {managerOverrideActive ? <StatusPill tone="override" label="Mgr override" detail="Active" /> : null}
