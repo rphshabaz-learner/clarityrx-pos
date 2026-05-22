@@ -11,6 +11,14 @@ export default function PosManagePanel({
   const [draftItems, setDraftItems] = useState(items);
   const [newTabLabel, setNewTabLabel] = useState("");
   const [printMerchantCopy, setPrintMerchantCopy] = useState(demographicConfig.printMerchantCopy);
+  const [taxRatePercent, setTaxRatePercent] = useState(() => Number(demographicConfig.taxRate || 0) * 100);
+  const [defaultDiscountType, setDefaultDiscountType] = useState(demographicConfig.defaultDiscountType || "none");
+  const [defaultDiscountValue, setDefaultDiscountValue] = useState(demographicConfig.defaultDiscountValue || 0);
+  const [collectSaleNotes, setCollectSaleNotes] = useState(demographicConfig.collectSaleNotes !== false);
+  const [promptForBag, setPromptForBag] = useState(demographicConfig.promptForBag !== false);
+  const [quickTenderText, setQuickTenderText] = useState(
+    (demographicConfig.quickTenderAmounts || [10, 20, 50, 100]).join(", ")
+  );
 
   const addTab = () => {
     const label = newTabLabel.trim();
@@ -37,8 +45,22 @@ export default function PosManagePanel({
   };
 
   const handleSave = () => {
+    const quickTenderAmounts = quickTenderText
+      .split(",")
+      .map((part) => Number(part.trim()))
+      .filter((amount) => Number.isFinite(amount) && amount > 0);
+
     onSaveFavorites({ tabs: draftTabs, items: draftItems });
-    onSaveDemographics({ ...demographicConfig, printMerchantCopy });
+    onSaveDemographics({
+      ...demographicConfig,
+      printMerchantCopy,
+      taxRate: Math.max(0, Number(taxRatePercent) || 0) / 100,
+      defaultDiscountType,
+      defaultDiscountValue: Math.max(0, Number(defaultDiscountValue) || 0),
+      collectSaleNotes,
+      promptForBag,
+      quickTenderAmounts: quickTenderAmounts.length ? quickTenderAmounts : [10, 20, 50, 100],
+    });
   };
 
   return (
@@ -55,6 +77,72 @@ export default function PosManagePanel({
           />
           Print merchant copy for card payments (Finestra: disable when unchecked)
         </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", marginTop: 10 }}>
+          <input
+            type="checkbox"
+            checked={collectSaleNotes}
+            onChange={(e) => setCollectSaleNotes(e.target.checked)}
+          />
+          Show sale notes on the till
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", marginTop: 10 }}>
+          <input
+            type="checkbox"
+            checked={promptForBag}
+            onChange={(e) => setPromptForBag(e.target.checked)}
+          />
+          Show bag and bottle shortcut buttons
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(120px, 1fr))", gap: 10, marginTop: 16 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>
+            Tax rate %
+            <input
+              className="crx-input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={taxRatePercent}
+              onChange={(e) => setTaxRatePercent(e.target.value)}
+              style={{ marginTop: 6 }}
+            />
+          </label>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>
+            Default discount
+            <select
+              className="crx-select"
+              value={defaultDiscountType}
+              onChange={(e) => setDefaultDiscountType(e.target.value)}
+              style={{ marginTop: 6 }}
+            >
+              <option value="none">None</option>
+              <option value="percent">Percent</option>
+              <option value="amount">Dollar</option>
+            </select>
+          </label>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>
+            Discount value
+            <input
+              className="crx-input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={defaultDiscountValue}
+              onChange={(e) => setDefaultDiscountValue(e.target.value)}
+              style={{ marginTop: 6 }}
+              disabled={defaultDiscountType === "none"}
+            />
+          </label>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>
+            Cash buttons
+            <input
+              className="crx-input"
+              value={quickTenderText}
+              onChange={(e) => setQuickTenderText(e.target.value)}
+              placeholder="10, 20, 50, 100"
+              style={{ marginTop: 6 }}
+            />
+          </label>
+        </div>
       </div>
 
       <div className="crx-card" style={{ padding: 18 }}>
