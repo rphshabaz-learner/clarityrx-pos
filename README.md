@@ -4,6 +4,14 @@ Standalone cashier till for ClarityRx pharmacies. Connects to the [ClarityRx](ht
 
 **Repository:** https://github.com/rphshabaz-learner/clarityrx-pos
 
+## Touch-screen monitors
+
+The till UI is built for **touch displays** (USB/HDMI touch monitors, Windows touch PCs, kiosk browsers):
+
+- Tap targets are at least **44×44 px** on coarse pointers (finger touch).
+- Favorites, pickup queue, payment methods, and cart controls use **tap** feedback (not hover-only).
+- Run in **Chrome or Edge** full screen on the till PC; pair with a USB barcode scanner for Rx bag and SKU entry.
+
 ## Prerequisites
 
 - Node.js 20.x
