@@ -36,15 +36,7 @@ function PosShell() {
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="crx-pos-auth">
-        <div className="crx-pos-auth__brand">
-          <div className="crx-pos-auth__title">ClarityRx POS</div>
-          <div className="crx-pos-auth__subtitle">Cashier till for pickup and front-store sales</div>
-        </div>
-        <AuthScreen />
-      </div>
-    );
+    return <AuthScreen />;
   }
 
   if (workstationLocked) {
