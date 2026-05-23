@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-nova-bg: #0a0e13;
+  --color-nova-card: #111720;
+  --color-nova-border: #1e2733;
+  --color-nova-text: #e2eaf2;
+  --color-nova-dim: #5a6a7a;
+  --color-nova-accent: #ffb800;
+  --font-sans: var(--font-barlow);
+  --font-condensed: var(--font-barlow-condensed);
+  --font-mono: var(--font-jetbrains);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-nova-bg);
+    color: var(--color-nova-text);
+    font-family: var(--font-sans), system-ui, sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0a0e13;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #ffb800;
+    border-radius: 2px;
+  }
+
+  input:focus {
+    outline: none;
+  }
+}
+
+@layer utilities {
+  .animate-fade-up {
+    animation: fade-up 0.28s ease both;
+  }
+
+  .animate-shake {
+    animation: shake 0.4s ease;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-7px);
+  }
+  40% {
+    transform: translateX(7px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}

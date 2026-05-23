@@ -105,6 +105,16 @@ See [docs/purchasing-receiving.md](docs/purchasing-receiving.md) for wholesaler 
 
 Clinical queues, patients, prescriptions, and pharmacy audit streams are **not** used by this app.
 
+## NOVA POS (separate app)
+
+**NOVA** is a standalone Next.js demo till in [`nova/`](nova/). It does not share the ClarityRx POS build, Electron launcher, or `REACT_APP_*` env from this repo.
+
+```bash
+cd nova && npm install && npm run dev
+```
+
+See [nova/README.md](nova/README.md).
+
 ## Related repos
 
 - **ClarityRx** — main pharmacy workspace (separate UI; opens this till in a new tab)
