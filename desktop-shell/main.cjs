@@ -38,7 +38,7 @@ function createWindow() {
     height: workArea.height,
     minWidth: Math.min(800, workArea.width),
     minHeight: Math.min(600, workArea.height),
-    title: "ClarityRx POS",
+    title: "Nova POS",
     icon: resolveIcon(),
     backgroundColor: "#0f172a",
     autoHideMenuBar: true,
