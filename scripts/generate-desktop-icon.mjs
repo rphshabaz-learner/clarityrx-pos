@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * Builds desktop-shell/icon.png and icon.icns from desktop-shell/icons/icon-1024.png
- * (or regenerates a placeholder if the source is missing).
+ * Builds desktop-shell/icon.png and icon.icns from the branded Nova POS icon.
+ * On macOS this also creates desktop-shell/icon.icns for the dock/desktop launcher.
  */
 import { execSync, spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { ensureNovaPosIconSource } from "./write-nova-pos-icon.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, "..");
@@ -22,10 +23,13 @@ function run(cmd, args) {
 }
 
 function buildIconset() {
+  ensureNovaPosIconSource({ overwrite: true });
+
   if (!fs.existsSync(SRC)) {
-    console.error(`Missing ${SRC}. Add a 1024×1024 PNG or copy pos-icon-source.png there.`);
+    console.error(`Missing ${SRC}. Nova POS icon source could not be generated.`);
     process.exit(1);
   }
+
   fs.rmSync(ICONSET, { recursive: true, force: true });
   fs.mkdirSync(ICONSET, { recursive: true });
   const sizes = [
@@ -56,6 +60,6 @@ function buildIconset() {
 if (process.platform === "darwin") {
   buildIconset();
 } else {
-  if (fs.existsSync(SRC)) fs.copyFileSync(SRC, PNG);
-  console.log("icon.icns requires macOS iconutil; copied PNG only.");
+  ensureNovaPosIconSource({ overwrite: true });
+  console.log("icon.icns requires macOS iconutil; copied Nova POS PNG only.");
 }
